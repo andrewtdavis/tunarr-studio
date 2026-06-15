@@ -1,0 +1,32 @@
+# ============================================================================
+# Tunarr Studio
+# ----------------------------------------------------------------------------
+# nginx serves the UI and proxies /api to Tunarr, so the page and the API share
+# one origin (no CORS). At container start the nginx image runs envsubst on
+# default.conf.template, filling in TUNARR_HOST / TUNARR_PORT.
+#
+# SETUP
+#   1. Put tunarr-studio.html and default.conf.template in the host dir below
+#      and make them readable by the container:  chmod o+r <files>
+#   2. Set TUNARR_HOST / TUNARR_PORT to your Tunarr server.
+#   3. TrueNAS: Apps -> Custom App -> install via YAML (paste this).
+#   4. Browse http://<host>:8088
+#
+# After editing the HTML, restart the container (nginx can keep serving a
+# cached copy of a bind-mounted file).
+# ============================================================================
+
+services:
+  tunarr-studio:
+    container_name: tunarr-studio
+    image: nginx:1.27-alpine
+    ports:
+      - '8088:80'
+    environment:
+      NGINX_ENVSUBST_OUTPUT_DIR: /etc/nginx/conf.d
+      TUNARR_HOST: tunarr.local
+      TUNARR_PORT: '8000'
+    volumes:
+      - /mnt/pool/apps/tunarr-studio/tunarr-studio.html:/usr/share/nginx/html/tunarr-studio.html:ro
+      - /mnt/pool/apps/tunarr-studio/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+    restart: unless-stopped
