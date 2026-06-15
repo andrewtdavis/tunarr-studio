@@ -1,0 +1,23 @@
+# ============================================================================
+# Tunarr Studio — previous nginx setup (kept for rollback)
+# ----------------------------------------------------------------------------
+# Serves the UI statically and proxies /api via default.conf.template. It has no
+# /studio-api, so saved preferences fall back to per-browser localStorage and the
+# guide feeder doesn't run. To roll back, apply this file instead of
+# docker-compose.yml (same port, same HTML).
+# ============================================================================
+
+services:
+  tunarr-studio:
+    container_name: tunarr-studio
+    image: nginx:1.27-alpine
+    ports:
+      - '8088:80'
+    environment:
+      NGINX_ENVSUBST_OUTPUT_DIR: /etc/nginx/conf.d
+      TUNARR_HOST: tunarr.local
+      TUNARR_PORT: '8000'
+    volumes:
+      - /mnt/pool/apps/tunarr-studio/tunarr-studio.html:/usr/share/nginx/html/tunarr-studio.html:ro
+      - /mnt/pool/apps/tunarr-studio/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+    restart: unless-stopped

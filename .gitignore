@@ -1,1 +1,5 @@
+# runtime prefs store (per-deployment state, not source)
+data/*
+!data/.gitkeep
+
 .DS_Store

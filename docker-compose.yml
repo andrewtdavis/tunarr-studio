@@ -1,32 +1,41 @@
 # ============================================================================
-# Tunarr Studio
+# Tunarr Studio — TrueNAS custom app (Docker Compose)
 # ----------------------------------------------------------------------------
-# nginx serves the UI and proxies /api to Tunarr, so the page and the API share
-# one origin (no CORS). At container start the nginx image runs envsubst on
-# default.conf.template, filling in TUNARR_HOST / TUNARR_PORT.
+# Runs the Node backend that serves the UI, proxies /api to Tunarr, persists
+# per-channel preferences, and re-feeds the guide on a timer so it never runs
+# dry. Same-origin, so no CORS.
 #
 # SETUP
-#   1. Put tunarr-studio.html and default.conf.template in the host dir below
-#      and make them readable by the container:  chmod o+r <files>
-#   2. Set TUNARR_HOST / TUNARR_PORT to your Tunarr server.
+#   1. Put these files in /mnt/pool/apps/tunarr-studio/ :
+#        server.js
+#        tunarr-studio.html
+#      And create a writable data dir for the prefs store:
+#        mkdir -p /mnt/pool/apps/tunarr-studio/data
+#        chmod -R o+rwX /mnt/pool/apps/tunarr-studio
+#   2. Set TUNARR_BASE below to your Tunarr server.
 #   3. TrueNAS: Apps -> Custom App -> install via YAML (paste this).
-#   4. Browse http://<host>:8088
+#   4. Browse to http://<truenas-ip>:8088
 #
-# After editing the HTML, restart the container (nginx can keep serving a
-# cached copy of a bind-mounted file).
+# The node:22-alpine image needs no build — server.js uses only core modules.
 # ============================================================================
 
 services:
   tunarr-studio:
+    image: node:22-alpine
     container_name: tunarr-studio
-    image: nginx:1.27-alpine
+    working_dir: /app
+    command: ["node", "/app/server.js"]
     ports:
-      - '8088:80'
+      - "8088:80"
     environment:
-      NGINX_ENVSUBST_OUTPUT_DIR: /etc/nginx/conf.d
-      TUNARR_HOST: tunarr.local
-      TUNARR_PORT: '8000'
+      TUNARR_BASE: "http://tunarr.local:8000"   # <-- your Tunarr server
+      PORT: "80"
+      PREFS_FILE: "/data/prefs.json"
+      UI_FILE: "/app/tunarr-studio.html"
+      FEED_INTERVAL: "360"                       # minutes between guide feeds (6h)
+      TZ: "America/Los_Angeles"
     volumes:
-      - /mnt/pool/apps/tunarr-studio/tunarr-studio.html:/usr/share/nginx/html/tunarr-studio.html:ro
-      - /mnt/pool/apps/tunarr-studio/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - /mnt/pool/apps/tunarr-studio/server.js:/app/server.js:ro
+      - /mnt/pool/apps/tunarr-studio/tunarr-studio.html:/app/tunarr-studio.html:ro
+      - /mnt/pool/apps/tunarr-studio/data:/data
     restart: unless-stopped

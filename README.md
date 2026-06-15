@@ -10,9 +10,11 @@ skip something nobody's watching, add or drop shows, and adjust how often each
 one airs, from a phone or tablet, without learning Tunarr's admin UI. Studio is
 that simpler control panel.
 
-It's a single-file vanilla-JS UI (`tunarr-studio.html`) served by nginx, which
-also proxies the Tunarr REST API so the page and the API share one origin (no
-CORS).
+It's a single-file vanilla-JS UI (`tunarr-studio.html`) served by a small
+zero-dependency Node backend (`server.js`). The backend proxies the Tunarr REST
+API (same origin, no CORS), saves per-channel preferences on the server so every
+device sees the same settings, and periodically re-applies saved schedules so
+Tunarr's guide never runs dry.
 
 ## Features
 
@@ -25,21 +27,37 @@ CORS).
   specific show, or reshuffle the channel.
 - **Add from Plex** — search the library through Tunarr, filter by content
   rating, and add whole shows to a channel.
+- **Saved preferences** — weights and build options are stored server-side in
+  `data/prefs.json` and restored when you reopen a channel.
+- **Guide feeder** — re-applies each channel's saved random schedule every
+  `FEED_INTERVAL` minutes (default 6 hours) so the guide stays populated.
 
 ## Install
 
 ```
-tunarr-studio.html      the UI
-default.conf.template   nginx config (proxies /api to Tunarr)
-docker-compose.yml      nginx:1.27-alpine container
+server.js                  Node backend (UI + /api proxy + prefs + guide feeder)
+tunarr-studio.html         the UI
+docker-compose.yml         node:22-alpine container (deploy this)
+docker-compose.nginx.yml   previous nginx setup, kept for rollback
+default.conf.template      nginx config used by the rollback setup
+data/                      prefs store (prefs.json, gitignored)
 ```
 
-1. Copy `tunarr-studio.html` and `default.conf.template` to a folder, e.g.
-   `/mnt/pool/apps/tunarr-studio/`, and make them readable by the container
-   (`chmod o+r`).
-2. Edit `docker-compose.yml`: set `TUNARR_HOST` / `TUNARR_PORT` to your Tunarr
-   server and fix the volume paths.
+1. Copy `server.js` and `tunarr-studio.html` to a folder, e.g.
+   `/mnt/pool/apps/tunarr-studio/`, and create a writable `data/` subfolder.
+2. Edit `docker-compose.yml`: set `TUNARR_BASE` to your Tunarr server, set
+   `TZ`, and fix the volume paths.
 3. `docker compose up -d`, or on TrueNAS: Apps → Custom App → install via YAML.
 4. Open `http://<host>:8088`.
 
-Restart the container after replacing the HTML.
+`server.js` uses only Node core modules, so there's no build step.
+
+## Environment variables
+
+| var | default | meaning |
+|-----|---------|---------|
+| `TUNARR_BASE` | `http://tunarr.local:8000` | Tunarr server base URL |
+| `PORT` | `80` | listen port inside the container |
+| `PREFS_FILE` | `/data/prefs.json` | preferences store |
+| `UI_FILE` | `/app/tunarr-studio.html` | UI path |
+| `FEED_INTERVAL` | `360` | minutes between guide re-feeds |
