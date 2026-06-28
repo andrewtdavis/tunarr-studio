@@ -1,10 +1,14 @@
 # ============================================================================
-# Tunarr Studio — previous nginx setup (kept for rollback)
+# Tunarr Studio — LEGACY nginx version (rollback only)
 # ----------------------------------------------------------------------------
-# Serves the UI statically and proxies /api via default.conf.template. It has no
-# /studio-api, so saved preferences fall back to per-browser localStorage and the
-# guide feeder doesn't run. To roll back, apply this file instead of
-# docker-compose.yml (same port, same HTML).
+# This is the original production setup, kept for rollback. It serves the UI
+# statically and proxies /api via default.conf.template (envsubst fills in
+# TUNARR_HOST/TUNARR_PORT). It does NOT persist prefs/collections and does NOT
+# feed the guide — those only exist in the Node version (docker-compose.yml).
+#
+# To roll back: ensure default.conf.template is present in the host volume dir,
+# then apply this file instead of docker-compose.yml. Nothing else to change —
+# same port (8088) and same tunarr-studio.html.
 # ============================================================================
 
 services:

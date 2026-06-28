@@ -2,4 +2,14 @@
 data/*
 !data/.gitkeep
 
+# harness / environment dirs (not part of the app)
+.claude/
+.claude-home/
+
+# logs & scratch
+*.log
+_raw/
+
+# os / editor
 .DS_Store
+node_modules/

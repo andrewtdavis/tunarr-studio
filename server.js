@@ -80,19 +80,40 @@ function tunarr(method, apiPath, body) {
 }
 
 /* --------------------------------------------------------- guide feeder */
-// Re-applies each saved schedule so Tunarr keeps maxDays of guide ahead.
+// Re-applies each saved random schedule so Tunarr keeps maxDays of guide ahead.
+// SAFETY: the API is rooted at <base>/api (so the path needs the /api prefix),
+// and we never replay blindly. A saved schedule could carry program ids from an
+// older Tunarr database, and posting dead ids can EMPTY the channel. Guard:
+// read the channel's CURRENT content first and SKIP if it already has none — if
+// a schedule has gone stale it has presumably already emptied the channel, and
+// we must not re-post (which would just keep it empty). A channel that still has
+// content means its schedule is live, so replaying it (verbatim, preserving the
+// saved program pool) is safe and refreshes the guide window.
 async function feedGuides(reason) {
   const prefs = loadPrefs();
   const ids = Object.keys(prefs.channels || {});
   if (!ids.length) return;
-  console.log(`[feed] (${reason}) re-applying ${ids.length} saved schedule(s)`);
+  console.log(`[feed] (${reason}) checking ${ids.length} saved schedule(s)`);
   for (const id of ids) {
     const entry = prefs.channels[id];
     if (!entry || !entry.scheduleBody) continue;
     try {
-      await tunarr('POST', `/channels/${id}/programming`, entry.scheduleBody);
+      const current = await tunarr('GET', `/api/channels/${id}/programming`);
+      const liveCount = ((current && current.lineup) || [])
+        .filter(e => e.type === 'content').length;
+      if (!liveCount) {
+        console.warn(`[feed]   SKIP ${entry.name || id}: channel currently has no content (won't replay into a void)`);
+        continue;
+      }
+      const after = await tunarr('POST', `/api/channels/${id}/programming`, entry.scheduleBody);
+      const made = (after && (after.totalPrograms != null
+        ? after.totalPrograms
+        : ((after.lineup || []).filter(e => e.type === 'content').length))) || 0;
+      if (!made) {
+        console.error(`[feed]   WARNING ${entry.name || id}: replay produced 0 programs — schedule may be stale`);
+      }
       entry.lastFedAt = Date.now();
-      console.log(`[feed]   ok: ${entry.name || id}`);
+      console.log(`[feed]   ok: ${entry.name || id} (${made} programs)`);
     } catch (e) {
       console.error(`[feed]   FAILED ${entry.name || id}: ${e.message}`);
     }
@@ -154,10 +175,12 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ---- proxy /api/* to Tunarr ----
+  // Tunarr's REST API is rooted at <base>/api, so forward the full path
+  // (including the /api prefix) unchanged. TUNARR_BASE must NOT include /api.
   if (p.startsWith('/api/')) {
     const body = (req.method !== 'GET' && req.method !== 'HEAD') ? await readBody(req) : undefined;
     try {
-      const result = await tunarr(req.method, p.slice('/api'.length) + (u.search || ''), body);
+      const result = await tunarr(req.method, p + (u.search || ''), body);
       return sendJSON(res, 200, result);
     } catch (e) {
       const m = /HTTP (\d+)/.exec(e.message);

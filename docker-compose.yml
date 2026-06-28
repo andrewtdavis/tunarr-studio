@@ -1,22 +1,22 @@
 # ============================================================================
-# Tunarr Studio — TrueNAS custom app (Docker Compose)
+# Tunarr Studio — production (Node version)
 # ----------------------------------------------------------------------------
-# Runs the Node backend that serves the UI, proxies /api to Tunarr, persists
-# per-channel preferences, and re-feeds the guide on a timer so it never runs
-# dry. Same-origin, so no CORS.
+# Replaces the old nginx:1.27-alpine container. The Node backend (server.js)
+# serves the UI, proxies /api -> Tunarr (same origin, no CORS), persists
+# per-channel prefs + named collections to /data/prefs.json, and re-feeds the
+# guide on a timer so it never runs dry.
 #
-# SETUP
-#   1. Put these files in /mnt/pool/apps/tunarr-studio/ :
-#        server.js
-#        tunarr-studio.html
-#      And create a writable data dir for the prefs store:
-#        mkdir -p /mnt/pool/apps/tunarr-studio/data
-#        chmod -R o+rwX /mnt/pool/apps/tunarr-studio
-#   2. Set TUNARR_BASE below to your Tunarr server.
-#   3. TrueNAS: Apps -> Custom App -> install via YAML (paste this).
-#   4. Browse to http://<truenas-ip>:8088
+# Same external port (8088) and same host volume dir as the old setup, so this
+# is a drop-in swap. To roll back, re-apply docker-compose.nginx.yml (the old
+# default.conf.template is still on the host volume).
 #
-# The node:22-alpine image needs no build — server.js uses only core modules.
+# CUTOVER (see README.md for the full checklist):
+#   1. Copy server.js + tunarr-studio.html into the host volume dir below.
+#   2. mkdir -p /mnt/pool/apps/tunarr-studio/data   (writable prefs store)
+#   3. Apply this compose (TrueNAS: Apps -> Custom App -> install via YAML).
+#   4. Browse http://<host>:8088
+#
+# node:22-alpine needs no build — server.js uses only Node core modules.
 # ============================================================================
 
 services:
@@ -28,11 +28,11 @@ services:
     ports:
       - "8088:80"
     environment:
-      TUNARR_BASE: "http://tunarr.local:8000"   # <-- your Tunarr server
+      TUNARR_BASE: "http://tunarr.local:8000"   # Tunarr API base (NO trailing /api)
       PORT: "80"
       PREFS_FILE: "/data/prefs.json"
       UI_FILE: "/app/tunarr-studio.html"
-      FEED_INTERVAL: "360"                       # minutes between guide feeds (6h)
+      FEED_INTERVAL: "360"                       # minutes between guide re-feeds (6h)
       TZ: "America/Los_Angeles"
     volumes:
       - /mnt/pool/apps/tunarr-studio/server.js:/app/server.js:ro

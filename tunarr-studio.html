@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Tunarr Studio — Channel Programming</title>
 <style>
+  .lab2{display:block;font-size:12px;color:var(--ink-dim);margin-bottom:4px}
   :root{
     --bg:#0d0f14; --panel:#151821; --panel-2:#1b1f2b; --line:#262b38;
     --ink:#e8eaf0; --ink-dim:#8b93a7; --ink-faint:#5a6276;
@@ -109,6 +110,20 @@
   .show .sub{font-family:var(--mono);font-size:11px;color:var(--ink-faint)}
   .rating-tag{display:inline-block;font-family:var(--mono);font-size:10px;padding:1px 6px;
     border:1px solid var(--line);border-radius:5px;color:var(--ink-dim);margin-left:7px;vertical-align:1px}
+
+  /* ---- up-next reorder rows ---- */
+  .upnext-row{
+    display:grid;grid-template-columns:22px 1fr;gap:10px;align-items:center;
+    padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);
+    margin-bottom:6px;cursor:grab;
+  }
+  .upnext-row:hover{border-color:#333a4b}
+  .upnext-row.dragging{opacity:.4}
+  .upnext-row.drop-target{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+  .upnext-row.on-now{border-color:var(--accent)}
+  .upnext-row .grip{color:var(--ink-faint);font-size:14px;letter-spacing:-2px;cursor:grab;user-select:none}
+  .upnext-row .title{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .upnext-row .sub{font-family:var(--mono);font-size:11px;color:var(--ink-faint)}
 
   /* weight fader */
   .fader{position:relative;height:26px;display:flex;align-items:center;gap:8px}
@@ -260,7 +275,50 @@ const State = {
   addResults: [],
   addSelected: new Map(),// id -> result item
   filterRatings: new Set(),
+  addType: 'show',      // 'show' | 'movie' — what the Add tab searches/adds
+  metaField: '',        // '' = free-text title; else a filterable attribute key
+  addCapped: false,     // true when search results were truncated by the fetch limit
 };
+
+// Metadata fields the Add tab can search by. Verified filterable against the
+// live index; values are matched EXACTLY (case-insensitive), partials don't
+// match. `key` is the Meilisearch attribute; `q:true` means "use the free-text
+// query string" instead of an exact filter. `movieOnly` fields are hidden for
+// shows (e.g. studio is only populated on movies in this Plex data).
+const META_FIELDS = [
+  {key:'',             label:'Title',    q:true},
+  {key:'genres.name',  label:'Genre'},
+  {key:'actors.name',  label:'Actor'},
+  {key:'director.name',label:'Director'},
+  {key:'studio.name',  label:'Studio', movieOnly:true},
+  {key:'originalReleaseYear', label:'Year'},
+  {key:'tags',         label:'Tag'},
+];
+
+// Genre vocabulary present in this library (verified via genres.name counts).
+const ALL_GENRES = ['Action','Adventure','Animation','Comedy','Crime','Documentary',
+  'Drama','Family','Fantasy','History','Horror','Music','Mystery','Romance',
+  'Science Fiction','Thriller','War','Western','Reality','Children','Sport','Suspense'];
+
+// Curated themed-channel suggestions. Each is validated against live content
+// counts when the Add-channel dialog opens; only those with enough content show.
+// types: which content kinds to pull; genres are AND-ed together.
+const CHANNEL_THEMES = [
+  {name:'Crime Dramas',  genres:['Crime'],              types:['show','movie']},
+  {name:'Sci-Fi',        genres:['Science Fiction'],    types:['show','movie']},
+  {name:'Rom-Coms',      genres:['Romance','Comedy'],   types:['movie']},
+  {name:'All Comedy',    genres:['Comedy'],             types:['show','movie']},
+  {name:'Cartoons',      genres:['Animation'],          types:['show','movie']},
+  {name:'Action',        genres:['Action'],             types:['show','movie']},
+  {name:'Adventure',     genres:['Adventure'],          types:['show','movie']},
+  {name:'Fantasy',       genres:['Fantasy'],            types:['show','movie']},
+  {name:'Horror Movies', genres:['Horror'],             types:['movie']},
+  {name:'Mystery',       genres:['Mystery'],            types:['show','movie']},
+  {name:'Family',        genres:['Family'],             types:['show','movie']},
+  {name:'Documentaries', genres:['Documentary'],        types:['show','movie']},
+  {name:'Westerns',      genres:['Western'],            types:['show','movie']},
+  {name:'Thrillers',     genres:['Thriller'],           types:['show','movie']},
+];
 
 const $ = s => document.querySelector(s);
 const el = (t,c,txt)=>{const e=document.createElement(t); if(c)e.className=c; if(txt!=null)e.textContent=txt; return e;};
@@ -301,6 +359,29 @@ function confirmModal(title, body){
   });
 }
 
+/* ---------- prompt modal (text input) ---------- */
+function promptModal(title, label, placeholder='', initial=''){
+  return new Promise(res=>{
+    $('#modalOk').style.display=''; $('#modalCancel').textContent='Cancel';
+    $('#modalTitle').textContent = title;
+    $('#modalBody').innerHTML =
+      `<label style="display:block;margin-bottom:6px;color:var(--ink-dim);font-size:13px">${label}</label>`+
+      `<input id="promptInput" class="search-in" style="width:100%" placeholder="${placeholder.replace(/"/g,'&quot;')}" value="${initial.replace(/"/g,'&quot;')}">`;
+    $('#modalBg').classList.add('show');
+    const inp=$('#promptInput'); setTimeout(()=>inp.focus(),30);
+    const done=v=>{ $('#modalBg').classList.remove('show'); $('#modalOk').onclick=null; $('#modalCancel').onclick=null; inp.onkeydown=null; res(v); };
+    $('#modalOk').onclick=()=>done(inp.value.trim()||null);
+    $('#modalCancel').onclick=()=>done(null);
+    inp.onkeydown=e=>{ if(e.key==='Enter'){e.preventDefault(); done(inp.value.trim()||null);} };
+  });
+}
+
+function closeModal(){
+  $('#modalBg').classList.remove('show');
+  $('#modalOk').style.display=''; $('#modalCancel').textContent='Cancel';
+  $('#modalOk').onclick=null; $('#modalCancel').onclick=null;
+}
+
 /* ---------- connection ---------- */
 function setConn(state, txt){
   const p = $('#connPill'); p.className = 'pill '+(state||'');
@@ -337,6 +418,11 @@ function renderChannels(){
     row.onclick=()=>selectChannel(ch);
     box.append(row);
   });
+  const add=el('div','chan add-chan'); add.style.cursor='pointer'; add.style.opacity='.85';
+  add.append(el('span','num','＋'));
+  add.append(el('span','nm','Add channel…'));
+  add.onclick=openAddChannel;
+  box.append(add);
 }
 
 /* ---------- group lineup by show ---------- */
@@ -405,7 +491,7 @@ async function selectChannel(ch){
   try{
     State.programming = await api('GET',`/channels/${ch.id}/programming`);
     State.shows = await groupShows(State.programming);
-    State.shows.sort((a,b)=> b.count-a.count || a.title.localeCompare(b.title));
+    State.shows.sort((a,b)=> a.title.localeCompare(b.title, undefined, {numeric:true}));
     // restore saved weights + build options for this channel
     const saved = await loadPrefs(ch.id);
     State.savedOpts = saved || null;
@@ -436,14 +522,16 @@ function renderMain(){
 
   // tabs
   const tabs = el('div','tabs');
-  ['manage','add'].forEach(t=>{
-    const tab = el('div','tab'+(State.tab===t?' active':''), t==='manage'?'Manage shows':'Add from Plex');
+  const tabLabels = {manage:'Manage shows', upnext:'Up Next', add:'Add from Plex'};
+  ['manage','upnext','add'].forEach(t=>{
+    const tab = el('div','tab'+(State.tab===t?' active':''), tabLabels[t]);
     tab.onclick=()=>{State.tab=t; renderMain(); if(t==='add') ensureAddTab();};
     tabs.append(tab);
   });
   root.append(tabs);
 
   if(State.tab==='manage') root.append(renderManage());
+  else if(State.tab==='upnext') root.append(renderUpNext());
   else root.append(renderAdd());
 
   $('#main').innerHTML=''; $('#main').append(root);
@@ -569,6 +657,100 @@ function openPicker(){
   $('#modalCancel').onclick=()=>{ $('#modalBg').classList.remove('show'); $('#modalOk').style.display=''; $('#modalCancel').textContent='Cancel'; };
 }
 
+/* ---------- UP NEXT (drag-to-reorder the upcoming lineup) ----------
+ * Shows the channel's content loop in PLAY ORDER, rotated so the program on
+ * now is first, with projected air times. Rows are draggable; Save POSTs the
+ * reordered lineup as a manual lineup. To stay seamless, after saving we shift
+ * startTime so the program that was on now keeps playing from the same point
+ * (unless it was dragged — then the new first item starts now). */
+let upNextDrag = null;
+function renderUpNext(){
+  const box = el('div');
+  const ph = currentPlayhead();
+  const {items} = lineupDurations();
+  const content = items.filter(it=>it.type==='content');
+  if(!content.length){
+    box.append(el('div','empty','No programming yet. Add shows or apply a schedule, then come back to reorder.'));
+    return box;
+  }
+  // rotate so the currently-playing item leads the list
+  let startIdx = 0;
+  if(ph){ const ci = content.findIndex(c=>c.idx===ph.cur.idx); if(ci>=0) startIdx=ci; }
+  const order = content.slice(startIdx).concat(content.slice(0,startIdx));
+  State.upNext = order.map(c=>({id:c.id, durationMs:c.durationMs, title:c.title, show:c.show}));
+  State.upNextInto = ph ? ph.into : 0;
+  State.upNextCurId = ph ? ph.cur.id : (order[0] && order[0].id);
+  State.upNextDirty = false;
+
+  const tb = el('div','toolbar');
+  tb.append(el('div','info','Drag rows to reorder. The program on now keeps playing seamlessly.'));
+  tb.append(el('div','spacer'));
+  const resetBtn = el('button','btn ghost sm','Reset'); resetBtn.onclick=()=>{State.tab='upnext'; renderMain();};
+  const saveBtn = el('button','btn primary','Save order'); saveBtn.id='upNextSave'; saveBtn.onclick=saveUpNext;
+  tb.append(resetBtn, saveBtn);
+  box.append(tb);
+
+  const list = el('div'); list.id='upNextList';
+  box.append(list);
+  renderUpNextRows(list);
+  return box;
+}
+
+function renderUpNextRows(list){
+  list = list || $('#upNextList'); if(!list) return;
+  list.innerHTML='';
+  let acc = Date.now() - (State.upNextInto||0); // projected start of row 0
+  State.upNext.forEach((it,i)=>{
+    const when = new Date(acc); acc += it.durationMs;
+    const row = el('div','upnext-row'+(i===0?' on-now':'')); row.draggable=true; row.dataset.i=i;
+    const handle = el('div','grip','⋮⋮');
+    const tw = el('div','un-main');
+    const t = el('div','title', it.show && it.show!==it.title ? `${it.show} — ${it.title}` : it.title);
+    const sub = el('div','sub', `${when.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})} · ${fmtDur(it.durationMs)}${i===0?' · on now':''}`);
+    tw.append(t, sub);
+    row.append(handle, tw);
+    row.ondragstart=e=>{ upNextDrag=i; row.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; try{e.dataTransfer.setData('text/plain',String(i));}catch(_){} };
+    row.ondragend=()=>{ row.classList.remove('dragging'); };
+    row.ondragover=e=>{ e.preventDefault(); e.dataTransfer.dropEffect='move'; row.classList.add('drop-target'); };
+    row.ondragleave=()=>row.classList.remove('drop-target');
+    row.ondrop=e=>{ e.preventDefault(); row.classList.remove('drop-target'); moveUpNext(upNextDrag, i); };
+    list.append(row);
+  });
+}
+
+function moveUpNext(from, to){
+  if(from==null || from===to || from<0) return;
+  const arr = State.upNext; if(to>=arr.length) to=arr.length-1;
+  const [m] = arr.splice(from,1); arr.splice(to,0,m);
+  State.upNextDirty = true;
+  renderUpNextRows();
+}
+
+async function saveUpNext(){
+  if(!State.upNext || !State.upNext.length){ toast('Nothing to save','warn'); return; }
+  const lineup = State.upNext.map(it=>({type:'content', id:it.id, duration:it.durationMs}));
+  const ok = await confirmModal('Save new order',
+    `Save the reordered lineup for <b>${State.current.name}</b> — ${lineup.length} programs?`);
+  if(!ok) return;
+  try{
+    toast('Saving order…','ok',1500);
+    await snapshotLineup('reorder');
+    State.programming = await api('POST',`/channels/${State.current.id}/programming`, {type:'manual', lineup, append:false});
+    // keep the program that was on now playing from the same point: find its new offset
+    const curId = State.upNextCurId, into = State.upNextInto||0;
+    let off=0, found=false;
+    for(const e of (State.programming.lineup||[])){
+      if(e.id===curId){ found=true; break; }
+      off += e.duration || 0;
+    }
+    await shiftStartTimeTo(found ? off + into + 30 : 30);
+    State.shows = await groupShows(State.programming);
+    State.shows.sort((a,b)=> a.title.localeCompare(b.title, undefined, {numeric:true}));
+    renderMain();
+    toast('Lineup reordered.','ok');
+  }catch(e){ toast('Reorder save failed: '+e.message,'err',6000); }
+}
+
 async function reshuffleNow(){
   const ok = await confirmModal('Reshuffle channel',
     `Wipe and regenerate <b>${State.current.name}</b> as a fresh shuffle, then start it from the top?<br><br>This keeps the same shows — only the order changes.`);
@@ -577,10 +759,11 @@ async function reshuffleNow(){
     // reload as a shuffled manual lineup
     const content = (State.programming.lineup||[]).filter(e=>e.type==='content').slice();
     for(let i=content.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [content[i],content[j]]=[content[j],content[i]]; }
+    await snapshotLineup('reshuffle');
     State.programming = await api('POST',`/channels/${State.current.id}/programming`, {type:'manual', lineup:content, append:false});
     await shiftStartTimeTo(0); // start from the top
     State.shows = await groupShows(State.programming);
-    State.shows.sort((a,b)=> b.count-a.count || a.title.localeCompare(b.title));
+    State.shows.sort((a,b)=> a.title.localeCompare(b.title, undefined, {numeric:true}));
     toast('Reshuffled and restarted from the top.','ok');
     renderMain();
   }catch(e){ toast('Reshuffle failed: '+e.message,'err',6000); }
@@ -614,7 +797,13 @@ function renderManage(){
   // list
   const list = el('div'); list.id='showList';
   box.append(list);
-  renderShowRows();
+  // Populate against the element we hold: at this point `box` is not yet in the
+  // document (renderMain appends it after we return), so $('#showList') would
+  // miss and the list would stay empty until the first filter keystroke.
+  renderShowRows('', '', list);
+
+  // named collections (save/restore the whole lineup under a name)
+  box.append(renderCollectionsPanel());
 
   // build options panel
   const opts = el('div','opts');
@@ -657,10 +846,22 @@ function renderManage(){
   const bar = el('div','actionbar');
   const info = el('div','info'); info.id='selInfo';
   const sp = el('div','spacer');
+  const restoreBtn = el('button','btn ghost','Restore previous lineup');
+  restoreBtn.title='Undo the last apply/add/remove by restoring the saved snapshot';
+  restoreBtn.onclick=restoreLineup;
   const removeBtn = el('button','btn danger','Remove selected'); removeBtn.onclick=removeSelected;
   const applyBtn = el('button','btn primary','Apply'); applyBtn.onclick=applyWeighting;
-  bar.append(info, sp, removeBtn, applyBtn);
+  bar.append(info, sp, restoreBtn, removeBtn, applyBtn);
   box.append(bar);
+  // reflect whether a backup exists (label + enabled state)
+  loadPrefs(State.current.id).then(p=>{
+    const bak = p && p.lineupBackup;
+    if(bak && bak.savedAt){
+      restoreBtn.textContent = `Restore previous (${bak.totalPrograms} programs)`;
+    } else {
+      restoreBtn.disabled = true; restoreBtn.style.opacity='.5'; restoreBtn.title='No saved lineup yet';
+    }
+  });
 
   updateSelInfo();
   setTimeout(syncOptState,0);
@@ -691,8 +892,8 @@ function syncOptState(){
   if(days) days.disabled = mode!=='random';
 }
 
-function renderShowRows(filterText='', filterRating=''){
-  const list = $('#showList'); if(!list) return;
+function renderShowRows(filterText='', filterRating='', listEl=null){
+  const list = listEl || $('#showList'); if(!list) return;
   list.innerHTML='';
   const ft = filterText.trim().toLowerCase();
   let shown=0;
@@ -766,9 +967,10 @@ async function removeShows(shows){
   const body = {type:'manual', lineup:newLineup, append:false};
   try{
     toast('Saving…','ok',1200);
+    await snapshotLineup('remove');
     State.programming = await api('POST',`/channels/${State.current.id}/programming`, body);
     State.shows = await groupShows(State.programming);
-    State.shows.sort((a,b)=> b.count-a.count || a.title.localeCompare(b.title));
+    State.shows.sort((a,b)=> a.title.localeCompare(b.title, undefined, {numeric:true}));
     renderMain();
     toast(`Removed ${shows.length} show(s). Guide will refresh.`,'ok');
   }catch(e){ toast('Remove failed: '+e.message,'err',6000); }
@@ -813,8 +1015,12 @@ async function applyWeighting(){
       durationSpec:{type:'dynamic', programCount: blockSize},
     }));
     if(!slots.length){toast('All weights are 0 — nothing to schedule','warn');return;}
+    // padStyle MUST be 'slot' (not 'episode'): with 'episode' the scheduler
+    // emits only ~programCount programs total and ignores maxDays, producing a
+    // 1-item lineup that WIPES the channel. 'slot' fills the full maxDays window
+    // (verified vs Tunarr 1.3.6: maxDays 1/2/7 -> 41/62/181 programs).
     body = {type:'random', programs:programIds, schedule:{
-      type:'random', flexPreference:'distribute', maxDays:days, padMs:0, padStyle:'episode',
+      type:'random', flexPreference:'distribute', maxDays:days, padMs:0, padStyle:'slot',
       slots, randomDistribution: normalize ? 'uniform' : 'weighted', lockWeights:false,
     }};
   } else {
@@ -873,9 +1079,10 @@ async function applyWeighting(){
   if(!ok) return;
   try{
     toast('Building schedule…','ok',1500);
+    await snapshotLineup('apply');
     State.programming = await api('POST',`/channels/${State.current.id}/programming`, body);
     State.shows = await groupShows(State.programming);
-    State.shows.sort((a,b)=> b.count-a.count || a.title.localeCompare(b.title));
+    State.shows.sort((a,b)=> a.title.localeCompare(b.title, undefined, {numeric:true}));
     // persist prefs + the exact schedule body so the backend can re-feed the
     // guide on a timer and restore the fader/options on next load.
     await savePrefs({
@@ -909,6 +1116,237 @@ async function loadPrefs(id){
   try{ const v=localStorage.getItem('tunarrStudioPrefs:'+id); return v?JSON.parse(v):null; }catch(_){ return null; }
 }
 
+/* ---------- lineup backup / restore safety net ----------
+ * Every lineup-mutating action (apply / add / remove / reshuffle) calls
+ * snapshotLineup() FIRST, persisting the pre-change content lineup to prefs.
+ * If a change goes wrong (e.g. a bad apply that wipes the channel), the user
+ * can hit "Restore previous lineup" to POST the saved snapshot back. The
+ * snapshot is normalized to {type,id,duration} so it re-POSTs as a valid
+ * manual lineup. We never snapshot an empty lineup, so a wiped channel can't
+ * clobber a good backup. */
+async function snapshotLineup(reason){
+  if(!State.current || !State.programming) return;
+  const lineup = (State.programming.lineup||[]).map(e=>
+    e.type==='content' ? {type:'content', id:e.id, duration:e.duration} : e
+  ).filter(e=> e.type!=='content' || (e.id && e.duration!=null));
+  const content = lineup.filter(e=>e.type==='content');
+  if(!content.length) return; // refuse to overwrite a backup with nothing
+  await savePrefs({ lineupBackup: {
+    savedAt: Date.now(), reason,
+    lineup, totalPrograms: content.length,
+    summary: State.shows.map(s=>({title:s.title, count:s.count})),
+  }});
+}
+async function restoreLineup(){
+  const saved = await loadPrefs(State.current.id);
+  const bak = saved && saved.lineupBackup;
+  if(!bak || !bak.lineup || !bak.lineup.length){ toast('No saved lineup to restore yet','warn'); return; }
+  const when = new Date(bak.savedAt).toLocaleString();
+  const shows = (bak.summary||[]).map(s=>`<code class="k">${s.title}</code>`).join(' ') || '(content)';
+  const ok = await confirmModal('Restore previous lineup',
+    `Restore the lineup saved <b>${when}</b> — ${bak.totalPrograms} programs?<br><br>${shows}<br><br>This replaces the current programming.`);
+  if(!ok) return;
+  try{
+    toast('Restoring…','ok',1500);
+    State.programming = await api('POST',`/channels/${State.current.id}/programming`,
+      {type:'manual', lineup:bak.lineup, append:false});
+    State.shows = await groupShows(State.programming);
+    State.shows.sort((a,b)=> a.title.localeCompare(b.title, undefined, {numeric:true}));
+    renderMain();
+    toast(`Restored ${bak.totalPrograms} programs.`,'ok');
+  }catch(e){ toast('Restore failed: '+e.message,'err',6000); }
+}
+
+/* ---------- named collections ----------
+ * Save the current channel lineup under an arbitrary name so you can swap the
+ * channel to something else and bring it back later. Stored per-channel in
+ * prefs under `collections` (name -> {savedAt, lineup, totalPrograms, summary}).
+ * Distinct from the auto-snapshot undo above: these are deliberate, named. */
+async function saveCollection(){
+  if(!State.current || !State.programming) return;
+  const content=(State.programming.lineup||[]).filter(e=>e.type==='content');
+  if(!content.length){ toast('Nothing to save — the channel is empty','warn'); return; }
+  const name=await promptModal('Save collection',
+    'Name this collection (its full lineup is saved):','e.g. Barney favorites');
+  if(!name) return;
+  const prefs=await loadPrefs(State.current.id)||{};
+  const collections={...(prefs.collections||{})};
+  const existed=!!collections[name];
+  collections[name]={
+    savedAt:Date.now(),
+    lineup: content.map(e=>({type:'content',id:e.id,duration:e.duration})),
+    totalPrograms: content.length,
+    summary: State.shows.map(s=>({title:s.title,count:s.count})),
+  };
+  await savePrefs({collections});
+  toast(`${existed?'Updated':'Saved'} collection “${name}” (${content.length} programs).`,'ok');
+  renderMain();
+}
+async function restoreCollection(name){
+  const prefs=await loadPrefs(State.current.id)||{};
+  const c=(prefs.collections||{})[name];
+  if(!c||!c.lineup||!c.lineup.length){ toast('Collection not found','warn'); return; }
+  const shows=(c.summary||[]).map(s=>`<code class="k">${s.title}</code>`).join(' ')||'(content)';
+  const ok=await confirmModal(`Load “${name}”`,
+    `Replace the current lineup with <b>${name}</b> — ${c.totalPrograms} programs?<br><br>${shows}`+
+    `<br><br><span style="color:var(--ink-faint)">The current lineup is auto-saved to “Restore previous” first.</span>`);
+  if(!ok) return;
+  try{
+    toast('Loading collection…','ok',1500);
+    await snapshotLineup('pre-collection-load');
+    State.programming=await api('POST',`/channels/${State.current.id}/programming`,{type:'manual',lineup:c.lineup,append:false});
+    State.shows=await groupShows(State.programming);
+    State.shows.sort((a,b)=>a.title.localeCompare(b.title,undefined,{numeric:true}));
+    renderMain();
+    toast(`Loaded “${name}”.`,'ok');
+  }catch(e){ toast('Load failed: '+e.message,'err',6000); }
+}
+async function deleteCollection(name){
+  const ok=await confirmModal('Delete collection',
+    `Delete saved collection <b>${name}</b>?<br><br>The channel's current lineup is unaffected.`);
+  if(!ok) return;
+  const prefs=await loadPrefs(State.current.id)||{};
+  const collections={...(prefs.collections||{})};
+  delete collections[name];
+  await savePrefs({collections});
+  toast(`Deleted “${name}”.`,'ok');
+  renderMain();
+}
+// Collections panel for the Manage tab (save current + chips to load/delete).
+function renderCollectionsPanel(){
+  const wrap=el('div','coll-panel'); wrap.style.margin='10px 0';
+  const bar=el('div','toolbar');
+  bar.append(el('div','info','Collections'));
+  bar.append(el('div','spacer'));
+  const saveBtn=el('button','btn ghost sm','＋ Save current as…'); saveBtn.onclick=saveCollection;
+  bar.append(saveBtn);
+  wrap.append(bar);
+  const chips=el('div','facet-chips'); chips.style.display='flex'; wrap.append(chips);
+  loadPrefs(State.current.id).then(p=>{
+    const cols=(p&&p.collections)||{};
+    const names=Object.keys(cols).sort((a,b)=>a.localeCompare(b));
+    chips.innerHTML='';
+    if(!names.length){ chips.append(el('span','info','No saved collections yet — “Save current as…” to keep this lineup.')); return; }
+    names.forEach(n=>{
+      const chip=el('div','chip'); chip.style.display='inline-flex'; chip.style.alignItems='center'; chip.style.gap='8px';
+      const lbl=el('span',null,`${n} · ${cols[n].totalPrograms}`); lbl.style.cursor='pointer'; lbl.title='Load this collection';
+      lbl.onclick=()=>restoreCollection(n);
+      const x=el('span',null,'✕'); x.style.cursor='pointer'; x.style.color='var(--ink-faint)'; x.title='Delete';
+      x.onclick=(e)=>{e.stopPropagation(); deleteCollection(n);};
+      chip.append(lbl,x); chips.append(chip);
+    });
+  });
+  return wrap;
+}
+
+/* ---------- add channel (themed suggestions) ----------
+ * Analyze the Plex library (genre counts via the search index), suggest themed
+ * channels, then create + auto-populate one. Movies come straight from search
+ * (they carry duration); shows are expanded to episodes via /descendants. */
+function genreFilter(genres, type){
+  const v=(k,val)=>({type:'value',fieldSpec:{key:k,name:k,type:'faceted_string',op:'=',value:[val]}});
+  const nodes=[v('type',type), ...genres.map(g=>v('genres.name',g))];
+  return nodes.length===1 ? nodes[0] : {type:'op',op:'and',children:nodes};
+}
+function searchGenre(genres,type,limit){
+  return api('POST','/programs/search',{query:{query:null,filter:genreFilter(genres,type),
+    sort:[{field:'sortTitle',direction:'asc'}]},limit,page:0});
+}
+async function countTheme(t){
+  let shows=0,movies=0;
+  if(t.types.includes('show')){ try{shows=(await searchGenre(t.genres,'show',1)).totalHits||0;}catch(e){} }
+  if(t.types.includes('movie')){ try{movies=(await searchGenre(t.genres,'movie',1)).totalHits||0;}catch(e){} }
+  return {shows,movies,total:shows+movies};
+}
+async function gatherContent(theme, onProg){
+  const out=[];
+  if(theme.types.includes('movie')){
+    onProg&&onProg('Collecting movies…');
+    const r=await searchGenre(theme.genres,'movie',200).catch(()=>null);
+    (r&&r.results||[]).forEach(m=>{ const id=m.uuid||m.id; if(id&&m.duration) out.push({type:'content',id,duration:m.duration}); });
+  }
+  if(theme.types.includes('show')){
+    const r=await searchGenre(theme.genres,'show',40).catch(()=>null);
+    const shows=(r&&r.results||[]).slice(0,30);
+    for(let i=0;i<shows.length;i++){
+      onProg&&onProg(`Adding episodes… (${i+1}/${shows.length} shows)`);
+      const sid=shows[i].uuid||shows[i].id;
+      const desc=await api('GET',`/programs/${sid}/descendants`).catch(()=>null);
+      if(Array.isArray(desc)) desc.slice(0,25).forEach(d=>{ const id=d.id||d.uuid; if(id&&d.duration) out.push({type:'content',id,duration:d.duration}); });
+      if(out.length>1200) break;
+    }
+  }
+  for(let j=out.length-1;j>0;j--){const k=Math.floor(Math.random()*(j+1));[out[j],out[k]]=[out[k],out[j]];}
+  return out.slice(0,800);
+}
+async function createThemedChannel(theme){
+  const tmpl=State.channels[0]||{};
+  if(!tmpl.transcodeConfigId){ toast('Need at least one existing channel (for a transcode config) before adding more.','err',6000); return; }
+  const name=await promptModal('Create channel','Channel name:','', theme.name);
+  if(!name) return;
+  $('#modalTitle').textContent='Creating channel';
+  $('#modalOk').style.display='none'; $('#modalCancel').textContent='Cancel'; $('#modalCancel').onclick=()=>closeModal();
+  $('#modalBody').innerHTML=`<div class="empty"><span class="spin"></span> Collecting content…</div>`;
+  $('#modalBg').classList.add('show');
+  try{
+    const content=await gatherContent(theme, msg=>{ const b=$('#modalBody'); if(b) b.innerHTML=`<div class="empty"><span class="spin"></span> ${msg}</div>`; });
+    if(!content.length){ toast('No playable content found for this theme','warn'); closeModal(); return; }
+    $('#modalBody').innerHTML=`<div class="empty"><span class="spin"></span> Creating channel + ${content.length} programs…</div>`;
+    const number=Math.max(0,...State.channels.map(c=>c.number||0))+1;
+    const chan={ id:uuid(), name, number, duration:0, startTime:Date.now(),
+      disableFillerOverlay:true, groupTitle:'tunarr', guideMinimumDuration:30000, fillerRepeatCooldown:30000,
+      icon:{path:'',width:0,duration:0,position:'bottom-right',useDefaultIconFallback:true},
+      offline:{picture:'',soundtrack:'',mode:'pic'}, stealth:false, streamMode:tmpl.streamMode||'hls',
+      transcodeConfigId:tmpl.transcodeConfigId, subtitlesEnabled:false };
+    const created=await api('POST','/channels',{type:'new',channel:chan});
+    State.channels=await api('GET','/channels');
+    // Tunarr assigns its own id; match by the response id if present, else by number
+    const nc=(created&&created.id&&State.channels.find(c=>c.id===created.id))||State.channels.find(c=>c.number===number);
+    if(!nc) throw new Error('channel created but could not be located');
+    await api('POST',`/channels/${nc.id}/programming`,{type:'manual',lineup:content,append:false});
+    closeModal(); renderChannels();
+    toast(`Created “${name}” (#${number}) with ${content.length} programs.`,'ok');
+    selectChannel(nc);
+  }catch(e){ toast('Create failed: '+e.message,'err',6000); closeModal(); }
+}
+async function openAddChannel(){
+  $('#modalTitle').textContent='Add a channel';
+  $('#modalOk').style.display='none'; $('#modalCancel').textContent='Close'; $('#modalCancel').onclick=()=>closeModal();
+  $('#modalBody').innerHTML=`<div class="empty"><span class="spin"></span> Analyzing your library…</div>`;
+  $('#modalBg').classList.add('show');
+  const themes=CHANNEL_THEMES.map(t=>({...t}));
+  await Promise.all(themes.map(async t=>{ const c=await countTheme(t); t.shows=c.shows; t.movies=c.movies; t.total=c.total; }));
+  const ok=themes.filter(t=>t.total>=15).sort((a,b)=>b.total-a.total);
+  const row=(t,i)=>{
+    const bits=[]; if(t.shows)bits.push(t.shows+' shows'); if(t.movies)bits.push(t.movies+' movies');
+    return `<div class="result"><div><div class="title">${t.name}</div>`+
+      `<div class="sub">${t.genres.join(' + ')} · ${bits.join(' + ')}</div></div>`+
+      `<button class="btn sm primary" data-create="${i}">Create</button></div>`;
+  };
+  $('#modalBody').innerHTML =
+    `<div style="max-height:52vh;overflow:auto">${ok.map(row).join('')||'<div class=empty>No themes have enough content.</div>'}</div>`+
+    `<div style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px">`+
+    `<button class="btn ghost sm" id="customChanBtn">Custom channel…</button></div>`;
+  $('#modalBody').querySelectorAll('button[data-create]').forEach(b=>{ b.onclick=()=>createThemedChannel(ok[+b.dataset.create]); });
+  $('#customChanBtn').onclick=openCustomChannel;
+}
+function openCustomChannel(){
+  $('#modalTitle').textContent='Custom channel';
+  $('#modalOk').style.display='none'; $('#modalCancel').textContent='Back'; $('#modalCancel').onclick=openAddChannel;
+  const genreOpts=ALL_GENRES.map(g=>`<option value="${g}">${g}</option>`).join('');
+  $('#modalBody').innerHTML=
+    `<label class="lab2">Name</label><input id="ccName" class="search-in" style="width:100%" placeholder="My Channel">`+
+    `<label class="lab2" style="margin-top:8px">Genre</label><select id="ccGenre" class="search-in" style="width:100%">${genreOpts}</select>`+
+    `<label class="lab2" style="margin-top:8px">Include</label><select id="ccType" class="search-in" style="width:100%">`+
+      `<option value="show,movie">Shows + Movies</option><option value="show">Shows only</option><option value="movie">Movies only</option></select>`+
+    `<div style="margin-top:12px;text-align:right"><button class="btn primary" id="ccCreate">Create</button></div>`;
+  $('#ccCreate').onclick=()=>{
+    const name=$('#ccName').value.trim();
+    if(!name){ toast('Enter a name','warn'); return; }
+    createThemedChannel({name, genres:[$('#ccGenre').value], types:$('#ccType').value.split(',')});
+  };
+}
+
 /* ---------- ADD tab (query Plex through Tunarr) ---------- */
 async function loadMediaSources(){
   try{
@@ -937,12 +1375,33 @@ function renderAdd(){
   libSel.onchange=async ()=>{ State.filterRatings.clear(); await loadRatingFacet(); runSearch(); };
   tb.append(libSel);
 
-  const q = el('input','search-in'); q.id='addQuery'; q.type='text'; q.placeholder='Search shows in Plex…';
+  // content type: shows or movies
+  const typeSel = el('select','search-in'); typeSel.id='typeSel';
+  typeSel.append(new Option('Shows','show'));
+  typeSel.append(new Option('Movies','movie'));
+  typeSel.value = State.addType;
+  typeSel.onchange=async ()=>{
+    State.addType = typeSel.value;
+    // studio etc. that don't apply to the new type fall back to Title
+    rebuildMetaFieldOptions();
+    State.filterRatings.clear();
+    await loadRatingFacet(); runSearch();
+  };
+  tb.append(typeSel);
+
+  // "search by" metadata field
+  const fieldSel = el('select','search-in'); fieldSel.id='metaField';
+  fieldSel.onchange=()=>{ State.metaField = fieldSel.value; updateQueryPlaceholder(); runSearch(); };
+  tb.append(fieldSel);
+
+  const q = el('input','search-in'); q.id='addQuery'; q.type='text';
   q.style.minWidth='220px';
   q.onkeydown=e=>{ if(e.key==='Enter') runSearch(); };
   tb.append(q);
   const go = el('button','btn primary','Search'); go.onclick=runSearch; tb.append(go);
   box.append(tb);
+  rebuildMetaFieldOptions();
+  updateQueryPlaceholder();
 
   // rating filter chips (populated from facets)
   const chips = el('div','facet-chips'); chips.id='ratingChips';
@@ -972,6 +1431,24 @@ function renderAdd(){
     results.querySelector('.empty').textContent='No Plex media sources found in Tunarr.';
   }
   return box;
+}
+
+// Populate the "search by" dropdown with the fields valid for the current type.
+function rebuildMetaFieldOptions(){
+  const sel = $('#metaField'); if(!sel) return;
+  const fields = META_FIELDS.filter(f=> !f.movieOnly || State.addType==='movie');
+  if(!fields.some(f=>f.key===State.metaField)) State.metaField=''; // reset if now-invalid
+  sel.innerHTML='';
+  fields.forEach(f=> sel.append(new Option('By '+f.label, f.key)));
+  sel.value = State.metaField;
+}
+function updateQueryPlaceholder(){
+  const q = $('#addQuery'); if(!q) return;
+  const noun = State.addType==='movie' ? 'movies' : 'shows';
+  const f = META_FIELDS.find(x=>x.key===State.metaField);
+  q.placeholder = (!f || f.q)
+    ? `Search ${noun} by title…`
+    : `Exact ${f.label.toLowerCase()} (e.g. ${({'genres.name':'Comedy','actors.name':'Tom Hanks','director.name':'Brad Bird','studio.name':'Walt Disney Pictures','originalReleaseYear':'1994','tags':'kids'})[f.key]||'value'})`;
 }
 
 async function loadLibraries(srcId){
@@ -1007,13 +1484,13 @@ async function loadRatingFacet(){
   try{
     const res = await api('POST','/programs/search', {
       query:{ query:null,
-        filter:{type:'value', fieldSpec:{key:'type',name:'type',type:'faceted_string',op:'=',value:['show']}},
+        filter:valueNode('type','=',[State.addType]),
         sort:[{field:'sortTitle',direction:'asc'}] },
       mediaSourceId: srcId||undefined,
       libraryId: libId||undefined,
       limit: 500, page:0,
     });
-    const items = ((res&&res.results)||[]).filter(it=>(it.type||'')==='show');
+    const items = ((res&&res.results)||[]).filter(it=>(it.type||'')===State.addType);
     const counts = {};
     items.forEach(it=>{ const r=it.rating||it.contentRating; if(r) counts[r]=(counts[r]||0)+1; });
     if(Object.keys(counts).length){
@@ -1035,15 +1512,21 @@ function renderRatingChips(){
   });
 }
 
+function valueNode(key, op, value){
+  return { type:'value', fieldSpec:{ key, name:key, type:'faceted_string', op, value } };
+}
 function buildFilterTree(){
-  // Meilisearch filterable fields (verified): 'type', 'rating'. Build an AND
-  // of: type = show, plus optional rating IN [...].
-  const nodes = [];
-  nodes.push({ type:'value', fieldSpec:{ key:'type', name:'type',
-    type:'faceted_string', op:'=', value:['show'] } });
+  // AND of: type = show|movie, optional rating IN [...], and an optional exact
+  // metadata filter (genre/actor/studio/…). Exact match is case-insensitive but
+  // not partial. Verified filterable attributes against the live index.
+  const nodes = [ valueNode('type','=',[State.addType]) ];
   if(State.ratingFacet && State.filterRatings.size){
-    nodes.push({ type:'value', fieldSpec:{ key:'rating', name:'rating',
-      type:'faceted_string', op:'in', value:[...State.filterRatings] } });
+    nodes.push(valueNode('rating','in',[...State.filterRatings]));
+  }
+  const f = META_FIELDS.find(x=>x.key===State.metaField);
+  const val = ($('#addQuery') ? $('#addQuery').value.trim() : '');
+  if(f && !f.q && f.key && val){
+    nodes.push(valueNode(f.key,'=',[val]));
   }
   if(nodes.length===1) return nodes[0];
   return { type:'op', op:'and', children:nodes };
@@ -1054,24 +1537,37 @@ async function runSearch(){
   const srcId = $('#srcSel') ? $('#srcSel').value : '';
   const libId = $('#libSel') ? $('#libSel').value : '';
   const text = $('#addQuery') ? $('#addQuery').value.trim() : '';
-  // Type filtering is done via the filter tree (field 'type' = 'show'), NOT via
-  // restrictSearchTo (which limits which text fields the query string matches).
+  const f = META_FIELDS.find(x=>x.key===State.metaField);
+  const asText = (!f || f.q);
+  // NOTE: Tunarr 1.3.6's free-text `query` is broken — a non-null query returns
+  // totalHits>0 but an EMPTY results array, so title search never worked. We
+  // therefore always send query:null and rely on the filter tree (type / rating
+  // / metadata — all verified working), then filter by title CLIENT-SIDE below.
   const body = {
     query:{
-      query: text||null,
+      query: null,
       filter: buildFilterTree(),
       sort:[{field:'sortTitle', direction:'asc'}],
     },
     mediaSourceId: srcId||undefined,
     libraryId: libId||undefined,
-    limit: 500, page:0,
+    limit: 1000, page:0,
   };
   try{
     const res = await api('POST','/programs/search', body);
     let items = (res && res.results) || [];
-    items = items.filter(it=> (it.type||'')==='show');
+    items = items.filter(it=> (it.type||'')===State.addType);
+    const totalHits = res ? res.totalHits : items.length;
+    // client-side title contains-filter (only when "By Title" is selected)
+    if(asText && text){
+      const t = text.toLowerCase();
+      items = items.filter(it=> itemTitle(it).toLowerCase().includes(t));
+    }
     State.addResults = items;
-    renderAddResults(res ? res.totalHits : items.length);
+    // capped flag: server returned fewer than the true total, so a title filter
+    // may have missed matches beyond the fetched page.
+    State.addCapped = (totalHits > (res ? (res.results||[]).length : 0));
+    renderAddResults(totalHits);
   }catch(e){
     results.innerHTML = `<div class="empty"><b>Search failed</b>${e.message}</div>`;
   }
@@ -1086,9 +1582,17 @@ function itemEpisodes(it){ return it.grandchildCount!=null?it.grandchildCount:(i
 function renderAddResults(totalHits){
   const box = $('#addResults'); box.innerHTML='';
   const items = State.addResults;
-  if(!items.length){ box.append(el('div','empty','No shows match. Try a different search or clear the rating filter.')); return; }
-  if(totalHits!=null && totalHits>items.length){
-    box.append(el('div','info',`Showing ${items.length} of ${totalHits} shows — narrow your search to see more.`));
+  const noun = State.addType==='movie' ? 'movies' : 'shows';
+  if(!items.length){
+    const src = State.mediaSources.find(s=>(s.id||s.uuid)===($('#srcSel')||{}).value);
+    const hint = `No ${noun} match. Try a different search or clear filters.`
+      + (src ? `<br><span style="color:var(--ink-faint)">If “${src.name}” shows nothing at all, its libraries may not be scanned into Tunarr yet.</span>` : '');
+    box.append(el('div','empty',hint)); return;
+  }
+  if(State.addCapped){
+    box.append(el('div','info',`Showing ${items.length} ${noun} (first ${noun==='movies'?'1000':'all'} loaded of ${totalHits}). Use a Genre/Year/Studio filter or a library to narrow — title matching only covers what's loaded.`));
+  } else if(totalHits!=null && totalHits>items.length){
+    box.append(el('div','info',`${items.length} of ${totalHits} ${noun} match.`));
   }
   items.forEach(it=>{
     const id = itemId(it);
@@ -1100,8 +1604,10 @@ function renderAddResults(totalHits){
     const t = el('div','title', itemTitle(it));
     const rt = itemRating(it); if(rt){ const tag=el('span','rating-tag',rt); t.append(tag); }
     const eps = itemEpisodes(it);
-    tWrap.append(t, el('div','sub', eps!=null?`${eps} episodes`:'show'));
-    const typ = el('div','sub', eps!=null?`${eps} ep`:'');
+    const yr = it.year ? ` · ${it.year}` : '';
+    const sub = itemType(it)==='movie' ? `movie${yr}` : (eps!=null?`${eps} episodes${yr}`:`show${yr}`);
+    tWrap.append(t, el('div','sub', sub));
+    const typ = el('div','sub', itemType(it)==='movie' ? fmtDur(it.duration||0) : (eps!=null?`${eps} ep`:''));
     const add1 = el('button','btn sm','Add'); add1.onclick=()=>{ State.addSelected.set(id,it); updateAddInfo(); addSelectedToChannel(); };
     row.append(chk, tWrap, typ, add1);
     box.append(row);
@@ -1115,36 +1621,42 @@ function updateAddInfo(){
 }
 
 async function addSelectedToChannel(){
-  if(!State.addSelected.size){ toast('Select shows to add first','warn'); return; }
-  // For each selected show, fetch its descendant episodes, then append as content.
-  toast('Resolving episodes…','ok',1500);
+  if(!State.addSelected.size){ toast('Select something to add first','warn'); return; }
+  // Shows/seasons expand to their descendant episodes; movies add as a single
+  // content entry. Both carry the `duration` the manual lineup POST requires.
+  toast('Resolving titles…','ok',1500);
   const newContent=[];
   try{
     for(const [id,it] of State.addSelected){
       const t = itemType(it);
       if(t==='movie'){
-        newContent.push({type:'content', id});
+        // Tunarr's manual lineup schema requires a numeric `duration` per content
+        // entry — omitting it 400s the whole POST (and can wipe programming).
+        newContent.push({type:'content', id, duration: it.duration});
       } else {
-        // show/season -> expand to episodes
+        // show/season -> expand to episodes. Descendant items already carry the
+        // content shape {type:'content', id, duration, program} — keep duration.
         const desc = await api('GET',`/programs/${id}/descendants`).catch(()=>null);
         if(Array.isArray(desc) && desc.length){
-          desc.forEach(d=> newContent.push({type:'content', id: d.id || d.uuid}));
+          desc.forEach(d=> newContent.push({type:'content', id: d.id || d.uuid, duration: d.duration}));
         } else {
-          newContent.push({type:'content', id});
+          newContent.push({type:'content', id, duration: it.duration});
         }
       }
     }
-    // append to existing lineup (normalize existing content entries to clean refs)
+    // append to existing lineup (normalize existing content entries to clean refs,
+    // preserving the required `duration` so the manual POST validates)
     const existing = (State.programming.lineup||[]).map(e=>{
-      if(e.type==='content') return {type:'content', id:e.id};
+      if(e.type==='content') return {type:'content', id:e.id, duration: e.duration};
       return e; // keep flex/redirect/custom as-is
     });
-    const body = {type:'manual', lineup: existing.concat(newContent.filter(c=>c.id)), append:false};
+    const body = {type:'manual', lineup: existing.concat(newContent.filter(c=>c.id && c.duration!=null)), append:false};
+    await snapshotLineup('add');
     State.programming = await api('POST',`/channels/${State.current.id}/programming`, body);
     State.shows = await groupShows(State.programming);
-    State.shows.sort((a,b)=> b.count-a.count || a.title.localeCompare(b.title));
+    State.shows.sort((a,b)=> a.title.localeCompare(b.title, undefined, {numeric:true}));
     State.addSelected.clear();
-    toast(`Added ${newContent.length} episode(s) to ${State.current.name}.`,'ok');
+    toast(`Added ${newContent.length} item(s) to ${State.current.name}.`,'ok');
     State.tab='manage'; renderMain();
   }catch(e){ toast('Add failed: '+e.message,'err',6000); }
 }
