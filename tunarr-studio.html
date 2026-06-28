@@ -185,6 +185,9 @@
     padding:9px 12px;border:1px solid var(--line);border-radius:9px;margin-bottom:6px;background:var(--panel)
   }
   .result .title{font-weight:600}
+  .result.on-channel{background:rgba(64,160,96,.10);border-color:rgba(80,180,110,.5)}
+  .on-tag{display:inline-block;font-size:10px;padding:1px 6px;margin-left:7px;border-radius:5px;
+    background:rgba(80,180,110,.18);color:#7fd6a0;vertical-align:1px}
   .facet-chips{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 12px}
   .chip{padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:var(--panel-2);
     cursor:pointer;font-size:12px;font-family:var(--mono);color:var(--ink-dim)}
@@ -961,18 +964,39 @@ async function removeShows(shows){
   const ok = await confirmModal('Remove shows',
     `Remove ${shows.length} show(s) — ${eps} episodes — from <b>${State.current.name}</b>?<br><br>${names}`);
   if(!ok) return;
+  try{
+    toast('Saving…','ok',1200);
+    await doRemoveShows(shows);
+    renderMain();
+    toast(`Removed ${shows.length} show(s). Guide will refresh.`,'ok');
+  }catch(e){ toast('Remove failed: '+e.message,'err',6000); }
+}
+// Core removal (no confirm, no render) shared by Manage and the Add tab.
+async function doRemoveShows(shows){
   const removeIds = new Set(shows.flatMap(s=>s.ids));
   const newLineup = (State.programming.lineup||[]).filter(e=>
     e.type!=='content' || !removeIds.has(e.id));
-  const body = {type:'manual', lineup:newLineup, append:false};
+  await snapshotLineup('remove');
+  State.programming = await api('POST',`/channels/${State.current.id}/programming`,
+    {type:'manual', lineup:newLineup, append:false});
+  State.shows = await groupShows(State.programming);
+  State.shows.sort((a,b)=> a.title.localeCompare(b.title, undefined, {numeric:true}));
+}
+// Which grouped channel show(s) a search result corresponds to (for add-state
+// + inline remove). Shows match by show id; movies match by their program id.
+function findChannelGroupsForResult(it){
+  const id = itemId(it);
+  if(itemType(it)==='movie') return State.shows.filter(g=> (g.ids||[]).includes(id));
+  return State.shows.filter(g=> g.showId===id);
+}
+async function removeResultFromChannel(it){
+  const groups = findChannelGroupsForResult(it);
+  if(!groups.length){ toast('Not on this channel','warn'); return; }
   try{
-    toast('Saving…','ok',1200);
-    await snapshotLineup('remove');
-    State.programming = await api('POST',`/channels/${State.current.id}/programming`, body);
-    State.shows = await groupShows(State.programming);
-    State.shows.sort((a,b)=> a.title.localeCompare(b.title, undefined, {numeric:true}));
-    renderMain();
-    toast(`Removed ${shows.length} show(s). Guide will refresh.`,'ok');
+    toast('Removing…','ok',1200);
+    await doRemoveShows(groups);
+    renderAddResults(State.addTotalHits||State.addResults.length);
+    toast(`Removed “${itemTitle(it)}” from ${State.current.name}. Undo via Manage → Restore previous.`,'ok');
   }catch(e){ toast('Remove failed: '+e.message,'err',6000); }
 }
 
@@ -1533,6 +1557,10 @@ function buildFilterTree(){
 }
 
 async function runSearch(){
+  // Guard against out-of-order responses: rapid filter changes fire overlapping
+  // searches, and a slow earlier one can resolve after a later one and clobber
+  // the results. Tag each request; only the latest may render.
+  const seq = (State.searchSeq = (State.searchSeq||0) + 1);
   const results = $('#addResults'); results.innerHTML = `<div class="empty"><span class="spin"></span> Searching…</div>`;
   const srcId = $('#srcSel') ? $('#srcSel').value : '';
   const libId = $('#libSel') ? $('#libSel').value : '';
@@ -1555,6 +1583,7 @@ async function runSearch(){
   };
   try{
     const res = await api('POST','/programs/search', body);
+    if(seq !== State.searchSeq) return; // a newer search superseded this one
     let items = (res && res.results) || [];
     items = items.filter(it=> (it.type||'')===State.addType);
     const totalHits = res ? res.totalHits : items.length;
@@ -1564,11 +1593,13 @@ async function runSearch(){
       items = items.filter(it=> itemTitle(it).toLowerCase().includes(t));
     }
     State.addResults = items;
+    State.addTotalHits = totalHits;
     // capped flag: server returned fewer than the true total, so a title filter
     // may have missed matches beyond the fetched page.
     State.addCapped = (totalHits > (res ? (res.results||[]).length : 0));
     renderAddResults(totalHits);
   }catch(e){
+    if(seq !== State.searchSeq) return;
     results.innerHTML = `<div class="empty"><b>Search failed</b>${e.message}</div>`;
   }
 }
@@ -1594,22 +1625,37 @@ function renderAddResults(totalHits){
   } else if(totalHits!=null && totalHits>items.length){
     box.append(el('div','info',`${items.length} of ${totalHits} ${noun} match.`));
   }
+  // what's already on this channel: shows by show-id, movies by program-id
+  const addedShowIds = new Set(State.shows
+    .filter(s=>!s.showId.startsWith('movie::')&&!s.showId.startsWith('title::')&&!s.showId.startsWith('item::'))
+    .map(s=>s.showId));
+  const addedContentIds = new Set((State.programming.lineup||[]).filter(e=>e.type==='content').map(e=>e.id));
   items.forEach(it=>{
     const id = itemId(it);
-    const row = el('div','result');
+    const onChannel = itemType(it)==='movie' ? addedContentIds.has(id) : addedShowIds.has(id);
+    const row = el('div','result'+(onChannel?' on-channel':''));
     const chk = el('input'); chk.type='checkbox'; chk.className='chk';
-    chk.checked = State.addSelected.has(id);
-    chk.onchange=()=>{ if(chk.checked) State.addSelected.set(id, it); else State.addSelected.delete(id); updateAddInfo(); };
+    if(onChannel){ chk.style.visibility='hidden'; } // no bulk-select for already-added
+    else {
+      chk.checked = State.addSelected.has(id);
+      chk.onchange=()=>{ if(chk.checked) State.addSelected.set(id, it); else State.addSelected.delete(id); updateAddInfo(); };
+    }
     const tWrap = el('div');
     const t = el('div','title', itemTitle(it));
     const rt = itemRating(it); if(rt){ const tag=el('span','rating-tag',rt); t.append(tag); }
+    if(onChannel) t.append(el('span','on-tag','on channel'));
     const eps = itemEpisodes(it);
     const yr = it.year ? ` · ${it.year}` : '';
     const sub = itemType(it)==='movie' ? `movie${yr}` : (eps!=null?`${eps} episodes${yr}`:`show${yr}`);
     tWrap.append(t, el('div','sub', sub));
     const typ = el('div','sub', itemType(it)==='movie' ? fmtDur(it.duration||0) : (eps!=null?`${eps} ep`:''));
-    const add1 = el('button','btn sm','Add'); add1.onclick=()=>{ State.addSelected.set(id,it); updateAddInfo(); addSelectedToChannel(); };
-    row.append(chk, tWrap, typ, add1);
+    let btn;
+    if(onChannel){
+      btn = el('button','btn sm danger','Remove'); btn.onclick=()=>removeResultFromChannel(it);
+    } else {
+      btn = el('button','btn sm','Add'); btn.onclick=()=>{ State.addSelected.set(id,it); updateAddInfo(); addSelectedToChannel(); };
+    }
+    row.append(chk, tWrap, typ, btn);
     box.append(row);
   });
   updateAddInfo();
@@ -1620,43 +1666,57 @@ function updateAddInfo(){
   info.textContent = State.addSelected.size ? `${State.addSelected.size} selected to add` : 'Nothing selected';
 }
 
+// Round-robin several groups into one list (A,B,A,B,…) so multiple added shows
+// mix together rather than playing as consecutive blocks.
+function roundRobin(groups){
+  const out=[]; for(let i=0;;i++){ let any=false; for(const g of groups){ if(i<g.length){ out.push(g[i]); any=true; } } if(!any) break; }
+  return out;
+}
+// Slot `additions` evenly through `existing`, preserving both orders — so a
+// newly-added show lands throughout the rotation (where it would have been),
+// not appended as a block at the end.
+function evenMerge(existing, additions){
+  if(!existing.length) return additions.slice();
+  if(!additions.length) return existing.slice();
+  const out=[]; const ratio=existing.length/additions.length; let ai=0, nextAt=ratio/2;
+  for(let i=0;i<existing.length;i++){
+    while(ai<additions.length && i>=nextAt){ out.push(additions[ai++]); nextAt+=ratio; }
+    out.push(existing[i]);
+  }
+  while(ai<additions.length) out.push(additions[ai++]);
+  return out;
+}
 async function addSelectedToChannel(){
   if(!State.addSelected.size){ toast('Select something to add first','warn'); return; }
   // Shows/seasons expand to their descendant episodes; movies add as a single
   // content entry. Both carry the `duration` the manual lineup POST requires.
   toast('Resolving titles…','ok',1500);
-  const newContent=[];
+  const newGroups=[];
   try{
     for(const [id,it] of State.addSelected){
-      const t = itemType(it);
-      if(t==='movie'){
-        // Tunarr's manual lineup schema requires a numeric `duration` per content
-        // entry — omitting it 400s the whole POST (and can wipe programming).
-        newContent.push({type:'content', id, duration: it.duration});
+      const g=[];
+      if(itemType(it)==='movie'){
+        g.push({type:'content', id, duration: it.duration});
       } else {
-        // show/season -> expand to episodes. Descendant items already carry the
-        // content shape {type:'content', id, duration, program} — keep duration.
         const desc = await api('GET',`/programs/${id}/descendants`).catch(()=>null);
-        if(Array.isArray(desc) && desc.length){
-          desc.forEach(d=> newContent.push({type:'content', id: d.id || d.uuid, duration: d.duration}));
-        } else {
-          newContent.push({type:'content', id, duration: it.duration});
-        }
+        if(Array.isArray(desc) && desc.length) desc.forEach(d=> g.push({type:'content', id: d.id || d.uuid, duration: d.duration}));
+        else g.push({type:'content', id, duration: it.duration});
       }
+      newGroups.push(g.filter(c=>c.id && c.duration!=null));
     }
-    // append to existing lineup (normalize existing content entries to clean refs,
-    // preserving the required `duration` so the manual POST validates)
-    const existing = (State.programming.lineup||[]).map(e=>{
-      if(e.type==='content') return {type:'content', id:e.id, duration: e.duration};
-      return e; // keep flex/redirect/custom as-is
-    });
-    const body = {type:'manual', lineup: existing.concat(newContent.filter(c=>c.id && c.duration!=null)), append:false};
+    const additions = roundRobin(newGroups);
+    if(!additions.length){ toast('Nothing playable to add','warn'); return; }
+    // normalize existing content refs (keep duration the POST requires), then
+    // slot the new content evenly through it instead of appending a block.
+    const existing = (State.programming.lineup||[]).map(e=>
+      e.type==='content' ? {type:'content', id:e.id, duration:e.duration} : e);
+    const body = {type:'manual', lineup: evenMerge(existing, additions), append:false};
     await snapshotLineup('add');
     State.programming = await api('POST',`/channels/${State.current.id}/programming`, body);
     State.shows = await groupShows(State.programming);
     State.shows.sort((a,b)=> a.title.localeCompare(b.title, undefined, {numeric:true}));
     State.addSelected.clear();
-    toast(`Added ${newContent.length} item(s) to ${State.current.name}.`,'ok');
+    toast(`Added ${additions.length} item(s) into ${State.current.name}'s rotation.`,'ok');
     State.tab='manage'; renderMain();
   }catch(e){ toast('Add failed: '+e.message,'err',6000); }
 }
