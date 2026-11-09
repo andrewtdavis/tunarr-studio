@@ -2,8 +2,7 @@
 /* =============================================================================
  * Tunarr Studio backend
  * -----------------------------------------------------------------------------
- * A tiny zero-dependency Node service that replaces the plain nginx container.
- * It does four jobs:
+ * A tiny zero-dependency Node service. It does four jobs:
  *   1. Serves the Tunarr Studio UI (tunarr-studio.html) on the same origin.
  *   2. Proxies /api/* to the real Tunarr server (no CORS issues).
  *   3. Persists per-channel programming preferences to a JSON file on the

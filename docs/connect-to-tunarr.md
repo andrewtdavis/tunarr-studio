@@ -50,9 +50,14 @@ API from the **same origin** (`:8088`), the browser never deals with CORS — op
 `http://<truenas-ip>:8088` and it connects automatically.
 
 > If you open `tunarr-studio.html` directly as a `file://` (not behind the
-> backend), the UI shows a server-URL box and talks to Tunarr directly — but then
-> you need Tunarr's CORS to allow it. The supported path is running it behind
-> `server.js` (the container), where this isn't an issue.
+> backend), the UI talks to Tunarr directly, and recent Tunarr builds only allow
+> same-origin requests unless you set `TUNARR_CORS_ORIGINS` on the Tunarr side.
+> Saved collections and the guide feeder also won't work without the backend.
+> Run it behind `server.js` (the container) — that's the supported setup.
+
+> **Tunarr basic auth:** if you've enabled Tunarr's optional
+> `TUNARR_BASIC_AUTH_USER` / `TUNARR_BASIC_AUTH_PASSWORD`, Studio can't connect
+> yet (it doesn't send credentials). See the Security section of the README.
 
 ---
 

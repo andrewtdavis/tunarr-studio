@@ -1,20 +1,16 @@
 # ============================================================================
-# Tunarr Studio — production (Node version)
+# Tunarr Studio
 # ----------------------------------------------------------------------------
-# Replaces the old nginx:1.27-alpine container. The Node backend (server.js)
-# serves the UI, proxies /api -> Tunarr (same origin, no CORS), persists
-# per-channel prefs + named collections to /data/prefs.json, and re-feeds the
-# guide on a timer so it never runs dry.
+# The Node backend (server.js) serves the UI, proxies /api -> Tunarr (same
+# origin, no CORS), persists per-channel prefs + named collections to
+# /data/prefs.json, and re-feeds the guide on a timer so it never runs dry.
 #
-# Same external port (8088) and same host volume dir as the old setup, so this
-# is a drop-in swap. To roll back, re-apply docker-compose.nginx.yml (the old
-# default.conf.template is still on the host volume).
-#
-# CUTOVER (see README.md for the full checklist):
-#   1. Copy server.js + tunarr-studio.html into the host volume dir below.
+# SETUP (see docs/truenas-setup.md for the full walkthrough):
+#   1. Copy server.js + tunarr-studio.html into the host dir below.
 #   2. mkdir -p /mnt/pool/apps/tunarr-studio/data   (writable prefs store)
-#   3. Apply this compose (TrueNAS: Apps -> Custom App -> install via YAML).
-#   4. Browse http://<host>:8088
+#   3. Set TUNARR_BASE and TZ, and fix the volume paths.
+#   4. Apply this compose (TrueNAS: Apps -> Custom App -> install via YAML).
+#   5. Browse http://<host>:8088
 #
 # node:22-alpine needs no build — server.js uses only Node core modules.
 # ============================================================================

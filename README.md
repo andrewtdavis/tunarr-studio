@@ -37,9 +37,7 @@ no build step.
 ```
 server.js                  Node backend (UI + /api proxy + /studio-api prefs + guide feeder)
 tunarr-studio.html         Single-file UI
-docker-compose.yml         PRODUCTION (Node). Deploy this.
-docker-compose.nginx.yml   Alternative static nginx setup (no prefs/feeder)
-default.conf.template      nginx config for the alternative setup
+docker-compose.yml         Container deployment (node:22-alpine)
 data/                      prefs store (prefs.json); contents gitignored
 docs/                      setup + connection guides
 README.md
@@ -112,28 +110,34 @@ curl -s http://<host>:8088/studio-api/prefs                    # {"channels":{}}
 
 Then open `http://<host>:8088` and confirm your channels load.
 
-## Alternative: static nginx (no backend)
+## Security
 
-`docker-compose.nginx.yml` serves the UI statically and proxies `/api` via an
-nginx config template instead of the Node backend. It's lighter, but **has no
-`/studio-api`** — so saved collections/backups fall back to per-browser
-`localStorage` and the **guide feeder doesn't run**. Use the Node version
-(`docker-compose.yml`) unless you specifically want static-only hosting. The
-nginx variant needs a `default.conf.template` alongside the HTML (see the
-comments in that compose file).
+Tunarr Studio has **no login of its own**. That matches a default Tunarr
+install, whose API is also unauthenticated — anyone who can reach Studio can
+change channel programming, exactly as anyone who can reach Tunarr's own UI
+can today. Studio doesn't widen that exposure, but it doesn't narrow it either.
+
+- **Keep it on your LAN.** Don't port-forward `:8088` to the internet.
+- **Remote access:** put it behind a VPN (WireGuard, Tailscale) or an
+  authenticating reverse proxy (Authelia, Authentik, Caddy/nginx with basic
+  auth) rather than exposing it directly.
+- **Tunarr's optional basic auth** (`TUNARR_BASIC_AUTH_USER` /
+  `TUNARR_BASIC_AUTH_PASSWORD`, in recent Tunarr builds) is **not yet
+  supported** — Studio doesn't send credentials, so with it enabled Studio's
+  API calls will get `401`. Leave it off, or front Tunarr with your own proxy.
 
 ## Local dev loop (no Docker)
 
-Run the backend against the live Tunarr API on a side port so production is
-untouched:
+Run the backend directly against a Tunarr server on a spare port (useful for
+testing changes without touching a running deployment):
 ```sh
 PORT=8090 TUNARR_BASE=http://tunarr.local:8000 \
   PREFS_FILE=$PWD/data/prefs.json UI_FILE=$PWD/tunarr-studio.html \
   node server.js
 # open http://<host>:8090   (Ctrl-C + re-run to reload after edits)
 ```
-The UI is one HTML file; edit and refresh. `server.js` reads the HTML into
-memory at startup, so restart it after editing the HTML.
+`server.js` reads the HTML into memory at startup, so restart it after editing
+`tunarr-studio.html`.
 
 ## Notes on Tunarr (1.3.6) quirks baked into the code
 

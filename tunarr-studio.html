@@ -1726,14 +1726,15 @@ window.addEventListener('DOMContentLoaded',()=>{
   const servedOverHttp = location.protocol === 'http:' || location.protocol === 'https:';
   const saved = localStorage && localStorage.getItem('tunarrStudioUrl');
   if(servedOverHttp){
-    // Deployed behind nginx (same origin as /api). Default to same-origin and
+    // Served by server.js (same origin as /api). Default to same-origin and
     // auto-connect so non-technical users don't have to type anything.
     $('#urlInput').value = saved || location.origin;
     $('#connectBtn').onclick = connect;
     $('#urlInput').onkeydown = e=>{ if(e.key==='Enter') connect(); };
     connect();
   } else {
-    // Opened as a local file:// — needs an explicit server URL + CORS.
+    // Opened as a local file:// — needs an explicit server URL, and Tunarr
+    // must allow this origin (TUNARR_CORS_ORIGINS). Dev/testing only.
     $('#urlInput').value = saved || 'http://tunarr.local:8000';
     $('#connectBtn').onclick = connect;
     $('#urlInput').onkeydown = e=>{ if(e.key==='Enter') connect(); };
