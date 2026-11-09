@@ -30,6 +30,11 @@ services:
       UI_FILE: "/app/tunarr-studio.html"
       FEED_INTERVAL: "360"                       # minutes between guide re-feeds (6h)
       TZ: "America/Los_Angeles"
+      # Only if your Tunarr has its optional basic-auth login turned on. Use the
+      # SAME values as Tunarr. Studio will send them to Tunarr and ask browsers
+      # for the same login. Leave both unset for no login.
+      # TUNARR_BASIC_AUTH_USER: "admin"
+      # TUNARR_BASIC_AUTH_PASSWORD: "change-me"
     volumes:
       - /mnt/pool/apps/tunarr-studio/server.js:/app/server.js:ro
       - /mnt/pool/apps/tunarr-studio/tunarr-studio.html:/app/tunarr-studio.html:ro

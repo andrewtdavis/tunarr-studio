@@ -55,9 +55,25 @@ API from the **same origin** (`:8088`), the browser never deals with CORS — op
 > Saved collections and the guide feeder also won't work without the backend.
 > Run it behind `server.js` (the container) — that's the supported setup.
 
-> **Tunarr basic auth:** if you've enabled Tunarr's optional
-> `TUNARR_BASIC_AUTH_USER` / `TUNARR_BASIC_AUTH_PASSWORD`, Studio can't connect
-> yet (it doesn't send credentials). See the Security section of the README.
+### If Tunarr has a login
+
+If you've turned on Tunarr's optional basic-auth login
+(`TUNARR_BASIC_AUTH_USER` / `TUNARR_BASIC_AUTH_PASSWORD` on the Tunarr
+container), set the **same two variables with the same values** on the Studio
+container (they're already in `docker-compose.yml`, commented out):
+
+```yaml
+TUNARR_BASIC_AUTH_USER: "admin"
+TUNARR_BASIC_AUTH_PASSWORD: "change-me"
+```
+
+Studio will log in to Tunarr with them and show your browser a login prompt for
+the same username and password. Check the container log on startup:
+
+- `[auth] Tunarr login OK; Studio login is ON` — all set.
+- `[auth] Tunarr requires a login but ... are not set` — add the two variables.
+- `[auth] Tunarr rejected the configured credentials` — the values don't match
+  Tunarr's.
 
 ---
 

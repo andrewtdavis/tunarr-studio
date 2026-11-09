@@ -99,6 +99,8 @@ Short version (any Docker host):
 | `PREFS_FILE` | `/data/prefs.json` | prefs/collections store |
 | `UI_FILE` | `/app/tunarr-studio.html` | UI path |
 | `FEED_INTERVAL` | `360` | minutes between guide re-feeds |
+| `TUNARR_BASIC_AUTH_USER` | *(unset)* | optional — match Tunarr's basic-auth user (see Security) |
+| `TUNARR_BASIC_AUTH_PASSWORD` | *(unset)* | optional — match Tunarr's basic-auth password |
 
 ## Verify a deployment
 
@@ -121,10 +123,16 @@ can today. Studio doesn't widen that exposure, but it doesn't narrow it either.
 - **Remote access:** put it behind a VPN (WireGuard, Tailscale) or an
   authenticating reverse proxy (Authelia, Authentik, Caddy/nginx with basic
   auth) rather than exposing it directly.
-- **Tunarr's optional basic auth** (`TUNARR_BASIC_AUTH_USER` /
-  `TUNARR_BASIC_AUTH_PASSWORD`, in recent Tunarr builds) is **not yet
-  supported** — Studio doesn't send credentials, so with it enabled Studio's
-  API calls will get `401`. Leave it off, or front Tunarr with your own proxy.
+- **Tunarr's optional basic-auth login** (`TUNARR_BASIC_AUTH_USER` /
+  `TUNARR_BASIC_AUTH_PASSWORD`, in recent Tunarr builds) is supported. Set the
+  **same two variables, with the same values**, on the Studio container. Studio
+  then sends them on every Tunarr call (proxy and guide feeder) and asks
+  browsers for the same login, so it can't be used to get around Tunarr's auth.
+  Leave them unset and Studio has no login, as before.
+- The startup log reports how this lines up, e.g. `[auth] Tunarr login OK;
+  Studio login is ON`, or a warning if Tunarr wants a login Studio wasn't given.
+- Basic auth sends the password with every request, so use it over a trusted
+  LAN/VPN or behind HTTPS.
 
 ## Local dev loop (no Docker)
 

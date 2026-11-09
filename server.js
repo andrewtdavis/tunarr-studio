@@ -18,6 +18,12 @@
  *   PREFS_FILE     path to the JSON store (default /data/prefs.json)
  *   FEED_INTERVAL  minutes between guide-feed runs (default 360 = 6h)
  *   UI_FILE        path to tunarr-studio.html (default /app/tunarr-studio.html)
+ *   TUNARR_BASIC_AUTH_USER / TUNARR_BASIC_AUTH_PASSWORD
+ *                  optional. Use the same values as Tunarr's own basic-auth
+ *                  settings. When both are set, Studio sends them on every
+ *                  Tunarr API call AND requires the same login from browsers,
+ *                  so Studio can't be used to get around Tunarr's auth. When
+ *                  unset, Studio has no login (matching a default Tunarr).
  *
  * No npm install required — uses only Node core modules.
  * ===========================================================================*/
@@ -25,6 +31,7 @@
 'use strict';
 const http = require('http');
 const fs = require('fs');
+const crypto = require('crypto');
 const path = require('path');
 const { URL } = require('url');
 
@@ -33,6 +40,35 @@ const PORT = parseInt(process.env.PORT || '80', 10);
 const PREFS_FILE = process.env.PREFS_FILE || '/data/prefs.json';
 const UI_FILE = process.env.UI_FILE || '/app/tunarr-studio.html';
 const FEED_INTERVAL_MIN = parseInt(process.env.FEED_INTERVAL || '360', 10);
+
+/* ------------------------------------------------------------- basic auth */
+// Same env var names Tunarr uses, so one pair of values configures both.
+const AUTH_USER = process.env.TUNARR_BASIC_AUTH_USER || '';
+const AUTH_PASS = process.env.TUNARR_BASIC_AUTH_PASSWORD || '';
+const AUTH_ON = Boolean(AUTH_USER && AUTH_PASS);
+const UPSTREAM_AUTH = AUTH_ON
+  ? 'Basic ' + Buffer.from(`${AUTH_USER}:${AUTH_PASS}`, 'utf8').toString('base64')
+  : null;
+
+// Constant-time comparison (hash first so lengths always match).
+function safeEqual(a, b) {
+  const h = v => crypto.createHash('sha256').update(String(v)).digest();
+  return crypto.timingSafeEqual(h(a), h(b));
+}
+
+function browserAuthorized(header) {
+  if (!AUTH_ON) return true;
+  if (!header || !header.startsWith('Basic ')) return false;
+  let decoded;
+  try { decoded = Buffer.from(header.slice(6).trim(), 'base64').toString('utf8'); }
+  catch { return false; }
+  const i = decoded.indexOf(':');
+  if (i < 0) return false;
+  // Evaluate both so timing doesn't reveal which half was wrong.
+  const userOk = safeEqual(decoded.slice(0, i), AUTH_USER);
+  const passOk = safeEqual(decoded.slice(i + 1), AUTH_PASS);
+  return userOk && passOk;
+}
 
 /* ------------------------------------------------------------------ prefs */
 function loadPrefs() {
@@ -48,7 +84,7 @@ function savePrefs(p) {
 }
 
 /* ------------------------------------------------------- tunarr API helper */
-function tunarr(method, apiPath, body) {
+function tunarr(method, apiPath, body, { noAuth = false } = {}) {
   return new Promise((resolve, reject) => {
     const u = new URL(TUNARR_BASE + apiPath);
     const data = body !== undefined ? Buffer.from(JSON.stringify(body)) : null;
@@ -57,6 +93,7 @@ function tunarr(method, apiPath, body) {
       method,
       headers: {
         'Accept': 'application/json',
+        ...(UPSTREAM_AUTH && !noAuth ? { 'Authorization': UPSTREAM_AUTH } : {}),
         ...(data ? { 'Content-Type': 'application/json', 'Content-Length': data.length } : {}),
       },
     }, res => {
@@ -68,7 +105,9 @@ function tunarr(method, apiPath, body) {
           try { resolve(txt ? JSON.parse(txt) : null); }
           catch { resolve(txt); }
         } else {
-          reject(new Error(`HTTP ${res.statusCode} ${method} ${apiPath}: ${txt.slice(0, 300)}`));
+          const err = new Error(`HTTP ${res.statusCode} ${method} ${apiPath}: ${txt.slice(0, 300)}`);
+          err.status = res.statusCode;
+          reject(err);
         }
       });
     });
@@ -147,6 +186,15 @@ const server = http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://x');
   const p = u.pathname;
 
+  // ---- login gate (only when TUNARR_BASIC_AUTH_* are set) ----
+  if (!browserAuthorized(req.headers.authorization)) {
+    res.writeHead(401, {
+      'WWW-Authenticate': 'Basic realm="Tunarr Studio", charset="UTF-8"',
+      'Content-Type': 'text/plain',
+    });
+    return res.end('Authentication required');
+  }
+
   // ---- Studio prefs API (our own) ----
   if (p === '/studio-api/prefs' && req.method === 'GET') {
     return sendJSON(res, 200, loadPrefs());
@@ -182,8 +230,15 @@ const server = http.createServer(async (req, res) => {
       const result = await tunarr(req.method, p + (u.search || ''), body);
       return sendJSON(res, 200, result);
     } catch (e) {
-      const m = /HTTP (\d+)/.exec(e.message);
-      return sendJSON(res, m ? +m[1] : 502, { error: e.message });
+      // A 401 from Tunarr means Studio's own credentials are missing or wrong.
+      // Don't pass it through as 401: that reads as "your login failed" to the
+      // browser. Report it as a gateway error that names the setting to fix.
+      if (e.status === 401) {
+        return sendJSON(res, 502, { error: AUTH_ON
+          ? 'Tunarr rejected Studio\'s credentials. Check that TUNARR_BASIC_AUTH_USER/PASSWORD match Tunarr\'s.'
+          : 'Tunarr requires a login. Set TUNARR_BASIC_AUTH_USER and TUNARR_BASIC_AUTH_PASSWORD on the Studio container (same values as Tunarr).' });
+      }
+      return sendJSON(res, e.status || 502, { error: e.message });
     }
   }
 
@@ -197,9 +252,36 @@ const server = http.createServer(async (req, res) => {
   res.end('Not found');
 });
 
+// Startup check: report whether Tunarr requires auth and whether our settings fit.
+async function probeTunarrAuth() {
+  let tunarrNeedsAuth;
+  try { await tunarr('GET', '/api/channels', undefined, { noAuth: true }); tunarrNeedsAuth = false; }
+  catch (e) {
+    if (e.status === 401) tunarrNeedsAuth = true;
+    else { console.warn(`[auth] couldn't reach Tunarr at startup (${e.message}); will keep trying on use`); return; }
+  }
+  if (!tunarrNeedsAuth) {
+    console.log(AUTH_ON
+      ? '[auth] Tunarr has no login; Studio login is ON (credentials set)'
+      : '[auth] Tunarr has no login; Studio login is OFF');
+    return;
+  }
+  if (!AUTH_ON) {
+    console.error('[auth] Tunarr requires a login but TUNARR_BASIC_AUTH_USER/PASSWORD are not set — API calls will fail');
+    return;
+  }
+  try { await tunarr('GET', '/api/channels'); console.log('[auth] Tunarr login OK; Studio login is ON'); }
+  catch (e) {
+    console.error(e.status === 401
+      ? '[auth] Tunarr rejected the configured credentials — check they match Tunarr\'s'
+      : `[auth] Tunarr check failed: ${e.message}`);
+  }
+}
+
 server.listen(PORT, () => {
   console.log(`Tunarr Studio backend on :${PORT}  ->  ${TUNARR_BASE}`);
   console.log(`Prefs: ${PREFS_FILE}  ·  guide feed every ${FEED_INTERVAL_MIN} min`);
+  probeTunarrAuth().catch(e => console.error(e));
   // feed once on startup (after a short delay so Tunarr is reachable), then on interval
   setTimeout(() => feedGuides('startup').catch(e => console.error(e)), 15000);
   setInterval(() => feedGuides('interval').catch(e => console.error(e)), FEED_INTERVAL_MIN * 60 * 1000);
