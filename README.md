@@ -38,10 +38,31 @@ no build step.
 server.js                  Node backend (UI + /api proxy + /studio-api prefs + guide feeder)
 tunarr-studio.html         Single-file UI
 docker-compose.yml         PRODUCTION (Node). Deploy this.
-docker-compose.nginx.yml   LEGACY nginx setup, kept for rollback only
+docker-compose.nginx.yml   Alternative static nginx setup (no prefs/feeder)
+default.conf.template      nginx config for the alternative setup
 data/                      prefs store (prefs.json); contents gitignored
+docs/                      setup + connection guides
 README.md
 ```
+
+## Install
+
+Tunarr Studio runs as a small container. You need a **Tunarr server already
+running** — Studio drives it through its API.
+
+- **TrueNAS Scale:** [`docs/truenas-setup.md`](docs/truenas-setup.md) — full
+  fresh-install walkthrough (Custom App via YAML).
+- **Connecting it to Tunarr + watching the channels:**
+  [`docs/connect-to-tunarr.md`](docs/connect-to-tunarr.md).
+
+Short version (any Docker host):
+
+1. Copy `server.js` and `tunarr-studio.html` to a folder, and make a writable
+   `data/` subdir next to them.
+2. Edit `docker-compose.yml`: set `TUNARR_BASE` to your Tunarr server (no
+   trailing `/api`), set `TZ`, and fix the three volume paths.
+3. `docker compose up -d` (or paste the YAML into TrueNAS → Custom App).
+4. Open `http://<host>:8088`.
 
 ## Features
 
@@ -61,6 +82,16 @@ README.md
 - **Safety net** — every lineup-changing action auto-snapshots the previous
   lineup ("Restore previous"); the guide feeder keeps random schedules topped up.
 
+## Roadmap
+
+- **Commercials / bumpers as filler** — play era-appropriate ads and channel
+  bumpers between shows (via Tunarr filler lists / `fillerCollections`) so a
+  channel feels like real broadcast TV, with a per-channel filler control in the
+  UI. See Tunarr's filler docs:
+  https://tunarr.com/configure/channels/filler/
+- Multi-server support (switch between Tunarr instances from the UI).
+- Per-channel transcode / stream-mode controls surfaced in the UI.
+
 ## Environment variables (server.js)
 
 | var | default | meaning |
@@ -71,38 +102,25 @@ README.md
 | `UI_FILE` | `/app/tunarr-studio.html` | UI path |
 | `FEED_INTERVAL` | `360` | minutes between guide re-feeds |
 
-## Production cutover (nginx → Node)
+## Verify a deployment
 
-The Node version uses the **same host volume dir and external port** as the old
-nginx app, so it's a drop-in swap.
+```sh
+curl -s -o /dev/null -w '%{http_code}\n' http://<host>:8088/   # 200 (UI)
+curl -s http://<host>:8088/api/channels | head -c 200          # channel JSON (proxy)
+curl -s http://<host>:8088/studio-api/prefs                    # {"channels":{}} or saved prefs
+```
 
-1. **Stage the files** in the existing host volume dir:
-   ```sh
-   cd /mnt/pool/apps/tunarr-studio
-   # copy the new server.js + tunarr-studio.html here (overwriting the old html)
-   mkdir -p data && chmod -R o+rwX data
-   ```
-2. **Stop** the old container (TrueNAS: stop the `tunarr-studio` app), or just
-   re-deploy with the new compose (same container name replaces it).
-3. **Apply** `docker-compose.yml` (TrueNAS: Apps → Custom App → install/edit via
-   YAML, paste the file). It pulls `node:22-alpine` and runs `node /app/server.js`.
-4. **Verify**:
-   ```sh
-   curl -s -o /dev/null -w '%{http_code}\n' http://<host>:8088/            # 200 (UI)
-   curl -s http://<host>:8088/api/channels | head -c 200                   # channel JSON (proxy)
-   curl -s http://<host>:8088/studio-api/prefs                             # {"channels":{}} or saved prefs
-   ```
-   Then open `http://<host>:8088` and confirm the channel loads.
+Then open `http://<host>:8088` and confirm your channels load.
 
-The old `default.conf.template` can stay on the host volume — it's only used by
-the nginx (rollback) setup and is ignored by the Node version.
+## Alternative: static nginx (no backend)
 
-### Rollback
-
-Re-apply `docker-compose.nginx.yml` (same port, same html, uses the
-still-present `default.conf.template`). Note: under nginx the `/studio-api`
-prefs endpoint doesn't exist, so collections/backups fall back to per-browser
-`localStorage` and the guide feeder doesn't run — but the UI itself still works.
+`docker-compose.nginx.yml` serves the UI statically and proxies `/api` via an
+nginx config template instead of the Node backend. It's lighter, but **has no
+`/studio-api`** — so saved collections/backups fall back to per-browser
+`localStorage` and the **guide feeder doesn't run**. Use the Node version
+(`docker-compose.yml`) unless you specifically want static-only hosting. The
+nginx variant needs a `default.conf.template` alongside the HTML (see the
+comments in that compose file).
 
 ## Local dev loop (no Docker)
 
@@ -119,13 +137,28 @@ memory at startup, so restart it after editing the HTML.
 
 ## Notes on Tunarr (1.3.6) quirks baked into the code
 
+These were found by testing against a live Tunarr instance and are load-bearing.
+If you extend this code, the reliable approach is to **probe the live API
+read-only first and match the code to what actually comes back** — don't guess
+response shapes, since Tunarr's API changes between versions.
+
 - **`/api` prefix**: Tunarr's API is rooted at `<base>/api`; `TUNARR_BASE` must
   NOT include `/api` (both the proxy and the feeder add it).
 - **Random schedules** must use `padStyle: 'slot'` — `'episode'` emits ~1
   program and ignores `maxDays` (this previously wiped channels).
+- **Each random-schedule slot needs its own `id` (uuid)** — a missing slot id
+  400s the POST.
 - **Manual lineup** content entries require `{type, id, duration}` — omitting
   `duration` 400s the whole POST.
+- **Show data is nested**: `GET /channels/:id/programming` returns condensed
+  programs where the show lives at `programs[id].program.show.{id,title}`.
 - **Free-text search is broken server-side** (returns a hit count but zero
-  documents), so the UI filters titles client-side over the filtered result set.
+  documents), so the UI filters titles client-side over a metadata-filtered
+  result set. For "show" vs "movie", filter with a tree on `type` — not
+  `restrictSearchTo`.
 - **Channel create** (`POST /api/channels {type:'new', channel:{…}}`) returns a
   server-assigned id; the UI matches the new channel by number as a fallback.
+
+## License
+
+[MIT](LICENSE) — not affiliated with Tunarr, Plex, Jellyfin, Emby, or iXsystems.
