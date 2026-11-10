@@ -207,7 +207,8 @@
 
   .modal-bg{position:fixed;inset:0;background:#000a;display:none;align-items:center;justify-content:center;z-index:40}
   .modal-bg.show{display:flex}
-  .modal{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;max-width:480px;width:90%}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;max-width:480px;width:90%;
+    max-height:calc(100vh - 32px);overflow:auto}
   .modal.wide{max-width:680px}
   .modal h2{margin:0 0 8px;font-size:17px}
   .theme-card{padding:11px 13px;border:1px solid var(--line);border-radius:9px;margin-bottom:8px;background:var(--panel-2)}
@@ -250,6 +251,15 @@
   .logo-ctl .search-in{width:100%}
   .logo-ctl .hint{font-size:11px;color:var(--ink-faint)}
   .logo-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;align-items:center}
+  .logo-grid{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .logo-ed.compact .logo-grid{gap:6px}
+  .logo-thumb{aspect-ratio:4/3;border:2px solid var(--line);border-radius:8px;cursor:pointer;overflow:hidden;
+    background:repeating-conic-gradient(#1a1f2b 0 25%, #151924 0 50%) 0 0/12px 12px}
+  .logo-thumb:hover{border-color:#4a5368}
+  .logo-thumb.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+  .logo-thumb svg{width:100%;height:100%;display:block}
+  .logo-nav{grid-column:1/-1;display:flex;align-items:center;gap:8px;margin-top:-4px}
+  .logo-nav .pg{flex:1;text-align:center;font-family:var(--mono);font-size:11px;color:var(--ink-faint)}
   .logo-btns label{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-dim);cursor:pointer}
   .logo-btns input[type=checkbox]{accent-color:var(--accent)}
   #pkLogo{margin-top:12px}
@@ -499,56 +509,133 @@ function renderChannels(){
 /* ---------- 90s-style logo generator ----------
  * Draws an original channel logo from the channel's name and a style family
  * picked by genre. Seeded by style + variant (not the text), so editing the
- * text keeps the layout and "Shuffle" moves to the next variant.
- * Built from generic 90s pieces — blobs, bursts, zigzags, confetti, chunky
- * outlined type — and deliberately not modeled on any network's actual mark.
- * Output is a 640x480 SVG; logoPng() rasterizes it for upload. */
+ * text keeps the design; the editor shows a grid of variants to pick from.
+ * Built from generic 90s pieces — blobs, splats, slime, bursts, retro TVs with
+ * rabbit-ear antennas, zigzags, confetti, chunky outlined type. The
+ * "Saturday morning" style is a nod to that era, but no style copies a
+ * specific network's mark (no mouse-eared TVs, no white-on-orange splat
+ * wordmark). Output is a 640x480 SVG; logoPng() rasterizes it for upload. */
 const LOGO_W=640, LOGO_H=480;
 const LOGO_FONTS={
   round:"'Arial Rounded MT Bold','Arial Black','Segoe UI Black',sans-serif",
   heavy:"'Arial Black','Segoe UI Black','Helvetica Neue',Arial,sans-serif",
   impact:"Impact,Haettenschweiler,'Arial Narrow Bold','Arial Black',sans-serif",
+  slab:"Rockwell,'Rockwell Extra Bold','Roboto Slab','Courier New',serif",
+  serif:"Georgia,'Palatino Linotype','Book Antiqua','Times New Roman',serif",
+  script:"'Brush Script MT','Segoe Script','Lucida Handwriting',cursive",
 };
-// LP(shape, shape2, shadow, text, text2, stroke, accents...)
+// LP(shape, shape2, shadow, text, text2, stroke, ...accents)
 const LP=(shape,shape2,shadow,text,text2,stroke,...accents)=>({shape,shape2,shadow,text,text2,stroke,accents});
+// Order matters for name-keyword guessing: more specific styles first.
+// arc / ribbon are the chance a variant curves its text / puts line 2 on a ribbon.
 const LOGO_STYLES={
-  toon:{label:'Toon — kids, animation, family', genres:['Animation','Family','Children'],
-    words:/kid|toon|cartoon|family|junior|\bjr\b|tot|tiny|play/i,
-    font:'round', perLetter:true, echo:true, shapes:['blob','splat','softburst'], decor:['sparkle','dot','squiggle','sparkle'],
+  saturday:{label:'Saturday morning — 90s kids nostalgia', genres:[],
+    words:/saturday|morning|\b90s\b|nineties|throwback|slime|splat|retro ?kids/i,
+    font:'round', perLetter:true, echo:true, arc:.45, shapes:['splat','goo','tvlegs','tvrabbit','splat','goo'],
+    decor:['dot','squiggle','sparkle','drop','zigzag'],
+    palettes:[LP('#ff7a00','#ffa040','#5a2200','#5b1fd1','#7dff3a','#ffffff','#7dff3a','#5b1fd1','#ffe14d'),
+      LP('#5fe01f','#a6ff5c','#1c4d00','#ff3dbb','#ffffff','#1c4d00','#ff3dbb','#ffe14d','#3de0ff'),
+      LP('#7b2ff7','#a46bff','#230a4d','#ffe14d','#7dff3a','#230a4d','#ff7a00','#7dff3a','#ffe14d'),
+      LP('#ff3d9a','#ff85c0','#5c0f3a','#ffe14d','#3de0ff','#5c0f3a','#3de0ff','#7dff3a','#ffffff'),
+      LP('#00b3a4','#4fe8da','#003d38','#ffffff','#ff7a00','#003d38','#ff7a00','#ffe14d','#ff3d9a')]},
+  toon:{label:'Toon — cartoons & family', genres:['Animation','Family'],
+    words:/toon|cartoon|animat|family/i,
+    font:'round', perLetter:true, echo:true, arc:.35, shapes:['blob','splat','softburst','speech','cloud'],
+    decor:['sparkle','dot','squiggle','sparkle','star'],
     palettes:[LP('#7b2ff7','#b04dff','#2a0a5e','#ffffff','#c6ff3d','#2a0a5e','#c6ff3d','#ff4fd8','#3de0ff'),
       LP('#00a9bd','#3de0ff','#0a3b52','#fff36b','#ffffff','#0a3b52','#ff4fd8','#fff36b','#7b2ff7'),
       LP('#2ec44a','#7af06a','#0f4a1c','#ffffff','#ff4fa3','#0f4a1c','#ff4fa3','#ffe14d','#3d7bff'),
       LP('#ff4fa3','#ff86c4','#5c0f3a','#ffffff','#ffe14d','#5c0f3a','#3de0ff','#ffe14d','#7af06a'),
-      LP('#ffd23d','#ffe988','#6b3d00','#3d2bff','#ff3d7f','#ffffff','#3d2bff','#ff3d7f','#00c2a8')]},
+      LP('#ffd23d','#ffe988','#6b3d00','#3d2bff','#ff3d7f','#ffffff','#3d2bff','#ff3d7f','#00c2a8'),
+      LP('#00c2a8','#5ff0d8','#004d43','#ffffff','#ff8a00','#004d43','#ff8a00','#ffe14d','#ff4fa3')]},
+  preschool:{label:'Preschool — little kids', genres:['Children','Kids'],
+    words:/kid|\btot|baby|pre-?school|junior|\bjr\b|little|tiny|\babc\b|play/i,
+    font:'round', perLetter:true, arc:.3, shapes:['cloud','rainbowcloud','blob','rainbowcloud'],
+    decor:['star','dot','heart','sparkle','cloudpuff'],
+    palettes:[LP('#ffffff','#f4f9ff','#9db8d9','#ff4d4d','#3d7bff','#1d3557','#ffe14d','#4dd06a','#ff4d4d'),
+      LP('#7cc8ff','#b5e2ff','#1f5f8b','#ffe14d','#ffffff','#1f5f8b','#ff6b6b','#ffe14d','#4dd06a'),
+      LP('#ffd84d','#ffeb99','#8a5a00','#3d7bff','#ff4d4d','#ffffff','#4dd06a','#3d7bff','#ff4d4d'),
+      LP('#5ccf5c','#9be89b','#1e5c1e','#ffffff','#ffe14d','#1e5c1e','#ff6b6b','#ffe14d','#3d9bff')]},
   comedy:{label:'Comedy', genres:['Comedy'],
     words:/comedy|laugh|funny|sitcom|\blol\b|joke|giggle/i,
-    font:'heavy', perLetter:true, tilt:true, shapes:['burst','badge','blob'], decor:['confetti','zigzag','dot','squiggle'],
+    font:'heavy', perLetter:true, tilt:true, arc:.3, shapes:['burst','badge','blob','speech'],
+    decor:['confetti','zigzag','dot','squiggle'],
     palettes:[LP('#ffe14d','#fff3a6','#7a2d00','#ff2d87','#00b8e6','#ffffff','#ff2d87','#00b8e6','#7b2ff7'),
       LP('#ff2d87','#ff79b3','#4d0026','#ffffff','#ffe14d','#4d0026','#ffe14d','#3de0ff','#7af06a'),
       LP('#00b8e6','#6fe0ff','#063a52','#ffe14d','#ffffff','#063a52','#ff2d87','#ffe14d','#ff8a00'),
-      LP('#7b2ff7','#a46bff','#230a4d','#ffe14d','#7af06a','#230a4d','#ff8a00','#7af06a','#ff2d87')]},
-  action:{label:'Action & adventure', genres:['Action','Adventure','War','Western','Sport'],
-    words:/action|adventure|hero|battle|\bwar\b|western|blast|extreme|turbo|power|sport/i,
-    font:'impact', skew:-12, shapes:['sharpburst','shield','slash'], decor:['speed','bolt','spark'],
+      LP('#7b2ff7','#a46bff','#230a4d','#ffe14d','#7af06a','#230a4d','#ff8a00','#7af06a','#ff2d87'),
+      LP('#ff8a00','#ffb453','#4d2300','#ffffff','#ffe14d','#4d2300','#1b2a5c','#ffe14d','#00b8e6')]},
+  action:{label:'Action & adventure', genres:['Action','Adventure','War'],
+    words:/action|adventure|hero|battle|\bwar\b|blast|extreme|turbo|power/i,
+    font:'impact', skew:-12, ribbon:.3, shapes:['sharpburst','shield','slash'], decor:['speed','bolt','spark'],
     palettes:[LP('#d61f1f','#ff4d2e','#1a0505','#ffe14d','#ffffff','#1a0505','#ffe14d','#ffffff','#ff8a00'),
       LP('#24406e','#3f6fb5','#0a1426','#ff9a1f','#ffffff','#0a1426','#ff9a1f','#cfe3ff','#ffffff'),
       LP('#151515','#3a3a3a','#000000','#ffc629','#ffffff','#000000','#ffc629','#ff3d2e','#ffffff'),
       LP('#4d5b2a','#73863f','#171c0a','#f2e3b3','#ff7a1a','#171c0a','#ff7a1a','#f2e3b3','#ffffff')]},
-  scifi:{label:'Sci-fi & fantasy', genres:['Science Fiction','Fantasy'],
-    words:/sci|space|galax|\bstar|cosmic|future|robot|alien|fantas|magic|dragon|quest/i,
+  western:{label:'Western', genres:['Western'],
+    words:/western|cowboy|frontier|ranch|trail|sheriff|outlaw|rodeo/i,
+    font:'slab', ribbon:.5, shapes:['plank','sheriff','plaque'], decor:['star','dot','spark'],
+    palettes:[LP('#a8642a','#c98a4b','#3d1f08','#fff1d0','#ffcc4d','#3d1f08','#ffcc4d','#fff1d0','#e0583a'),
+      LP('#d9b77e','#ecd3a5','#5c3d12','#5a1f0a','#a3361c','#fff6e0','#a3361c','#5a1f0a','#3b6b5f'),
+      LP('#3b2a1e','#5c4330','#120b06','#ffcc4d','#e8d2b0','#120b06','#ffcc4d','#c0392b','#e8d2b0')]},
+  sports:{label:'Sports', genres:['Sport','Sports'],
+    words:/sport|game ?day|league|ball|goal|slam|arena|champ|athlet/i,
+    font:'impact', skew:-10, ribbon:.5, shapes:['shield','band','circlebadge'], decor:['star','speed','spark'],
+    palettes:[LP('#1b2a5c','#2f4d9e','#070d22','#ffffff','#ff3b3b','#070d22','#ff3b3b','#ffffff','#ffd23d'),
+      LP('#0f6b3a','#1f9e5a','#032614','#ffd23d','#ffffff','#032614','#ffd23d','#ffffff','#0f6b3a'),
+      LP('#c8102e','#ef3a52','#2a0008','#ffffff','#ffd23d','#2a0008','#111111','#ffffff','#ffd23d'),
+      LP('#4b2a85','#6e45b8','#160a2e','#ffc629','#ffffff','#160a2e','#ffc629','#ffffff','#b8a3e0')]},
+  scifi:{label:'Sci-fi & space', genres:['Science Fiction'],
+    words:/sci|space|galax|\bstar|cosmic|future|robot|alien|rocket/i,
     font:'heavy', chrome:true, spacing:.06, shapes:['planet','hexagon','orbit'], decor:['star','ring','twinkle'],
     palettes:[LP('#2a0f5c','#5b2bb3','#0a0320','url(#chrome)','#3df5ff','#0a0320','#3df5ff','#ff4fd8','#ffffff'),
       LP('#0b1d3a','#1f4d8f','#02060f','url(#chrome)','#7dff4d','#02060f','#7dff4d','#3df5ff','#ffffff'),
       LP('#1a0626','#5a0f6e','#05010a','url(#chrome)','#ff4fd8','#05010a','#ff4fd8','#ffd23d','#3df5ff')]},
-  spooky:{label:'Horror, crime & mystery', genres:['Horror','Thriller','Mystery','Crime','Suspense'],
-    words:/horror|scary|spook|fright|midnight|dark|crime|myster|thrill|suspense|ghost|monster|creep|fear/i,
+  fantasy:{label:'Fantasy & fairy tales', genres:['Fantasy'],
+    words:/fantas|magic|dragon|quest|legend|kingdom|wizard|fairy|enchant|myth/i,
+    font:'serif', spacing:.03, ribbon:.6, shapes:['crest','scroll','hexagon'], decor:['sparkle','star','twinkle'],
+    palettes:[LP('#3b1f6e','#6a3fb5','#12072a','#ffd56b','#ffffff','#12072a','#ffd56b','#b8f2ff','#ff9de2'),
+      LP('#0f4d3a','#1f8a66','#03170f','#f5e1a4','#ffd56b','#03170f','#ffd56b','#f5e1a4','#9be8c9'),
+      LP('#7a1022','#b3203a','#24040a','#ffd56b','#ffffff','#24040a','#ffd56b','#ffffff','#e8b4ff')]},
+  spooky:{label:'Horror & thrillers', genres:['Horror','Thriller','Suspense'],
+    words:/horror|scary|spook|fright|midnight|dark|thrill|suspense|ghost|monster|creep|fear/i,
     font:'impact', jitter:true, shapes:['drip','spiky','moon'], decor:['bat','star','drop'],
     palettes:[LP('#121212','#2b2b2b','#000000','#8dff3a','#ffffff','#000000','#8dff3a','#c7c7c7','#ffffff'),
       LP('#3b0f5c','#6a1fa3','#120320','#ff8a1f','#ffffff','#120320','#ff8a1f','#ffd23d','#c9a6ff'),
       LP('#7a0a0a','#b31414','#1a0000','#ffffff','#ffcf3d','#1a0000','#ffffff','#ff5050','#ffcf3d'),
       LP('#1f3a3d','#2f6166','#071314','#d9fff6','#5cffd6','#071314','#5cffd6','#ffffff','#9fb3b5')]},
-  retro:{label:'Retro network — drama, docs, music…', genres:['Drama','Documentary','History','Music','Reality','Romance'],
-    words:null, font:'heavy', skew:-8, shapes:['tv','sunset','badge'], decor:['memphis','zigzag','triangle','squiggle'],
+  noir:{label:'Crime & mystery', genres:['Crime','Mystery'],
+    words:/crime|myster|detective|\bcase|\bcop|police|noir|whodun|sleuth|clue/i,
+    font:'impact', skew:-6, spacing:.02, shapes:['magnify','spotlight','tape'], decor:['drop','spark','star'],
+    palettes:[LP('#1a1a1a','#333333','#000000','#ffd400','#ffffff','#000000','#ffd400','#ffffff','#888888'),
+      LP('#13294b','#24477f','#050c17','#ffffff','#ff4d4d','#050c17','#ff4d4d','#ffffff','#8fb3ff'),
+      LP('#3a3a3a','#5a5a5a','#0d0d0d','#e8e8e8','#ffd400','#0d0d0d','#d42f2f','#e8e8e8','#ffd400')]},
+  drama:{label:'Drama & movie night', genres:['Drama'],
+    words:/drama|theat|cinema|movie|film|matinee|premiere|feature|showtime|marquee/i,
+    font:'heavy', spacing:.02, ribbon:.4, shapes:['marquee','ticket','badge'], decor:['star','sparkle','twinkle'],
+    palettes:[LP('#8b0f1f','#c41e3a','#2a0309','#ffd56b','#ffffff','#2a0309','#ffd56b','#fff3c4','#ffffff'),
+      LP('#1c1c3c','#34346b','#07071a','#ffd56b','#ff5c8a','#07071a','#ffd56b','#ff5c8a','#ffffff'),
+      LP('#0f3d3e','#1e6b6c','#041516','#fff3c4','#ffb347','#041516','#ffb347','#fff3c4','#ffffff')]},
+  music:{label:'Music & dance', genres:['Music','Musical'],
+    words:/music|hits|rock|\bpop\b|jam|beat|dance|radio|video|tunes|groove/i,
+    font:'heavy', skew:-10, jitter:true, shapes:['record','sharpburst','badge'], decor:['note','zigzag','spark','squiggle'],
+    palettes:[LP('#111111','#2d2d2d','#000000','#ff3dbb','#3df5ff','#000000','#ff3dbb','#3df5ff','#ffe14d'),
+      LP('#2b0f5c','#5b2bb3','#0a0320','#ffe14d','#3df5ff','#0a0320','#ffe14d','#3df5ff','#ff3dbb'),
+      LP('#ff3dbb','#ff85d6','#4d0030','#ffffff','#ffe14d','#4d0030','#111111','#ffe14d','#3df5ff')]},
+  romance:{label:'Romance', genres:['Romance'],
+    words:/romance|love|heart|valentine|sweet/i,
+    font:'script', weight:700, keepCase:true, shapes:['heart','badge','cloud'], decor:['heart','sparkle','dot'],
+    palettes:[LP('#e8336d','#ff6f99','#5c0f28','#ffffff','#ffe3ec','#5c0f28','#ffffff','#ffd1df','#ffd56b'),
+      LP('#ffd1df','#ffe8ef','#b0476a','#c2185b','#7a1037','#ffffff','#e8336d','#ffffff','#ffd56b'),
+      LP('#7a1037','#b0244f','#2a0412','#ffd1df','#ffd56b','#2a0412','#ffd1df','#ffd56b','#ffffff')]},
+  docs:{label:'Documentary, history & nature', genres:['Documentary','History','Nature','Biography'],
+    words:/\bdocs?\b|documentar|history|nature|planet|earth|wild|discover|science|world|explore|biograph/i,
+    font:'serif', spacing:.03, ribbon:.5, shapes:['globe','plaque','sunset'], decor:['leaf','star','dot'],
+    palettes:[LP('#1f5f8b','#3a8fc7','#0a2238','#ffffff','#ffd56b','#0a2238','#7cd67c','#ffd56b','#ffffff'),
+      LP('#2f5d3a','#4f8f5e','#0e2414','#f5e6c4','#ffd56b','#0e2414','#ffd56b','#f5e6c4','#9bd19b'),
+      LP('#6b4a2b','#9a7048','#24170b','#fff3d6','#ffc857','#24170b','#ffc857','#fff3d6','#7aa7c7')]},
+  retro:{label:'Retro network — reality, talk & everything else', genres:['Reality','Talk','Game Show','News'],
+    words:null, font:'heavy', skew:-8, ribbon:.35, shapes:['tv','sunset','badge','tvrabbit'], decor:['memphis','zigzag','triangle','squiggle'],
     palettes:[LP('#0f8b8d','#2fc1c3','#073b3c','#ffffff','#ffd23d','#073b3c','#ff4f9a','#ffd23d','#5b2bb3'),
       LP('#2b1a5c','#5b2bb3','#0d0626','#ffd23d','#ff7a59','#0d0626','#ff7a59','#ff4f9a','#ffd23d'),
       LP('#1b2a5c','#2f4d9e','#070d22','#ffffff','#ff3b3b','#070d22','#ff3b3b','#ffffff','#ffd23d'),
@@ -568,6 +655,8 @@ function seededRng(seed){
 const lgPick=(r,a)=>a[Math.floor(r()*a.length)];
 const lgR=(r,a,b)=>a+(b-a)*r();
 const f1=n=>Math.round(n*10)/10;
+function hexLum(h){ const m=/^#([0-9a-f]{6})$/i.exec(h||''); if(!m) return .5;
+  const v=parseInt(m[1],16); return (.299*(v>>16)+.587*((v>>8)&255)+.114*(v&255))/255; }
 // Closed Catmull-Rom curve through points, as cubic Béziers.
 function smoothPath(pts){
   const n=pts.length; let d=`M${f1(pts[0][0])},${f1(pts[0][1])}`;
@@ -578,11 +667,31 @@ function smoothPath(pts){
   return d+'Z';
 }
 const polyPath=pts=>'M'+pts.map(p=>`${f1(p[0])},${f1(p[1])}`).join(' L')+'Z';
+const circlePath=(x,y,R)=>`M${f1(x-R)},${f1(y)} a${f1(R)},${f1(R)} 0 1 0 ${f1(R*2)},0 a${f1(R)},${f1(R)} 0 1 0 ${f1(-R*2)},0Z`;
+const heartPath=(x,y,sx,sy)=>`M${f1(x)},${f1(y+sy*.95)} C${f1(x-sx*1.25)},${f1(y+sy*.15)} ${f1(x-sx*1.05)},${f1(y-sy*.95)} ${f1(x)},${f1(y-sy*.42)} C${f1(x+sx*1.05)},${f1(y-sy*.95)} ${f1(x+sx*1.25)},${f1(y+sy*.15)} ${f1(x)},${f1(y+sy*.95)}Z`;
 function ring(cx,cy,rx,ry,n,radiusFn){ return Array.from({length:n},(_,i)=>{ const a=i/n*Math.PI*2-Math.PI/2, k=radiusFn(i,a); return [cx+Math.cos(a)*rx*k, cy+Math.sin(a)*ry*k]; }); }
+// Order points clockwise on screen, so extra subpaths add to (not cut from) a shape.
+function cw(pts){ let s=0; for(let i=0;i<pts.length;i++){ const a=pts[i], b=pts[(i+1)%pts.length]; s+=a[0]*b[1]-b[0]*a[1]; } return s<0?pts.slice().reverse():pts; }
+const scaledCopy=(d,cx,cy,k,attrs)=>`<path d="${d}" transform="translate(${cx} ${cy}) scale(${k}) translate(${-cx} ${-cy})" ${attrs}/>`;
 
-// Backdrop shapes: each returns {d (main path), under (svg drawn before), over (svg after)}.
-function logoShape(kind, r, cx, cy, rx, ry, pal){
-  const out={d:'',under:'',over:''};
+// Backdrop shapes. Returns {d | rect, under, mid, over, defs, tc (text center), tw (text width)}:
+// under = before the body, mid = after the body (same-color add-ons), over = on top.
+function logoShape(kind, r, cx, cy, rx, ry, pal, id){
+  const out={d:'',under:'',mid:'',over:'',defs:''};
+  const tv=(antenna, legs)=>{
+    const w=rx*1.8, h=ry*(legs?1.4:1.55), l=cx-w/2, t=cy-h/2+(legs?-14:12), b=24;
+    out.d=`M${f1(l+40)},${f1(t)} Q${f1(cx)},${f1(t-b)} ${f1(l+w-40)},${f1(t)} Q${f1(l+w+b)},${f1(t+h/2)} ${f1(l+w-40)},${f1(t+h)} Q${f1(cx)},${f1(t+h+b)} ${f1(l+40)},${f1(t+h)} Q${f1(l-b)},${f1(t+h/2)} ${f1(l+40)},${f1(t)}Z`;
+    const L=antenna==='rabbit'?ry*.7:ry*.58, sw=antenna==='rabbit'?5:7, by=t-b*.6;
+    [lgR(r,-38,-22), lgR(r,22,38)].forEach((a,i)=>{ const x=cx+Math.sin(a*Math.PI/180)*L, y=by-Math.cos(a*Math.PI/180)*L;
+      out.under+=`<line x1="${cx}" y1="${f1(by)}" x2="${f1(x)}" y2="${f1(y)}" stroke="${pal.shape2}" stroke-width="${sw}" stroke-linecap="round"/>`+
+        `<circle cx="${f1(x)}" cy="${f1(y)}" r="${antenna==='rabbit'?8:11}" fill="${pal.accents[i]}" stroke="${pal.shadow}" stroke-width="4"/>`; });
+    if(antenna==='rabbit') out.under+=`<ellipse cx="${cx}" cy="${f1(by+4)}" rx="34" ry="18" fill="${pal.shadow}"/>`;
+    if(legs){ [-1,1].forEach(s=>{ const x=cx+s*w*.28, y=t+h+b*.6;
+      out.under+=`<line x1="${f1(x)}" y1="${f1(y-10)}" x2="${f1(x+s*8)}" y2="${f1(y+34)}" stroke="${pal.shadow}" stroke-width="12" stroke-linecap="round"/>`+
+        `<ellipse cx="${f1(x+s*20)}" cy="${f1(y+40)}" rx="26" ry="12" fill="${pal.accents[2]||pal.accents[0]}" stroke="${pal.shadow}" stroke-width="4"/>`; }); }
+    out.over+=`<circle cx="${f1(l+w-30)}" cy="${f1(t+h-28)}" r="9" fill="${pal.accents[0]}" stroke="${pal.shadow}" stroke-width="3"/>`;
+    out.tw=w*.8; out.tc=[cx-8,t+h/2];
+  };
   switch(kind){
     case 'blob': out.d=smoothPath(ring(cx,cy,rx,ry,Math.floor(lgR(r,7,10)),()=>lgR(r,.86,1.06))); break;
     case 'splat': {
@@ -590,53 +699,150 @@ function logoShape(kind, r, cx, cy, rx, ry, pal){
       for(let i=0;i<4;i++){ const a=lgR(r,0,Math.PI*2), k=lgR(r,1.1,1.2), s=lgR(r,10,22);
         out.under+=`<circle cx="${f1(cx+Math.cos(a)*rx*k)}" cy="${f1(cy+Math.sin(a)*ry*k)}" r="${f1(s)}" fill="${pal.shape}"/>`; }
       break; }
+    case 'goo': {
+      const gy=cy-16; out.d=smoothPath(ring(cx,gy,rx,ry*.86,Math.floor(lgR(r,8,11)),()=>lgR(r,.9,1.05)));
+      const n=Math.floor(lgR(r,3,6));
+      for(let i=0;i<n;i++){ const x=cx-rx*.6+rx*1.2*(i+.5)/n+lgR(r,-15,15), w=lgR(r,18,30), len=lgR(r,40,95), y0=cy+ry*.5;
+        const dd=`M${f1(x-w/2)},${f1(y0)} V${f1(y0+len)} A${f1(w/2)},${f1(w/2)} 0 0 0 ${f1(x+w/2)},${f1(y0+len)} V${f1(y0)}Z`;
+        out.under+=`<path d="${dd}" fill="${pal.shadow}" transform="translate(14 14)"/>`;
+        out.mid+=`<path d="${dd}" fill="${pal.shape}"/>`; }
+      out.tc=[cx,gy]; break; }
     case 'softburst': out.d=smoothPath(ring(cx,cy,rx,ry,24,i=>i%2?.8:1.04)); break;
+    case 'cloud': out.d=smoothPath(ring(cx,cy,rx,ry*.92,18,i=>i%2?.88:1.02)); break;
+    case 'rainbowcloud': {
+      const cyc=cy+28;
+      ['#ff4d4d','#ffa53d','#ffe14d','#4dd06a','#3d9bff','#8a5cff'].forEach((c,k)=>{ const R=rx*1.0-k*15;
+        out.under+=`<path d="M${f1(cx-R)},${f1(cyc)} A${f1(R)},${f1(R*.8)} 0 0 1 ${f1(cx+R)},${f1(cyc)}" fill="none" stroke="${c}" stroke-width="15"/>`; });
+      out.d=smoothPath(ring(cx,cyc,rx*.92,ry*.72,18,i=>i%2?.86:1.02)); out.tc=[cx,cyc]; out.tw=rx*1.5; break; }
+    case 'speech': {
+      const sy=cy-14; out.d=smoothPath(ring(cx,sy,rx,ry*.84,16,()=>1));
+      const s=r()<.5?-1:1;
+      out.d+=' '+polyPath(cw([[cx+s*rx*.2,sy+ry*.55],[cx+s*rx*.62,sy+ry*1.18],[cx+s*rx*.52,sy+ry*.45]]));
+      out.tc=[cx,sy]; break; }
     case 'burst': out.d=polyPath(ring(cx,cy,rx,ry,Math.floor(lgR(r,11,16))*2,i=>i%2?lgR(r,.76,.84):1.05)); break;
     case 'sharpburst': out.d=polyPath(ring(cx,cy,rx*1.04,ry,Math.floor(lgR(r,8,11))*2,i=>i%2?lgR(r,.62,.74):1.06)); break;
     case 'spiky': out.d=polyPath(ring(cx,cy,rx,ry,Math.floor(lgR(r,16,22)),i=>i%2?lgR(r,.82,.9):lgR(r,.98,1.08))); break;
     case 'badge': {
-      const w=rx*1.9,h=ry*1.5,a=lgR(r,-7,7);
-      out.d=`M${f1(cx-w/2)},${f1(cy-h/2)} h${f1(w)} v${f1(h)} h${f1(-w)}Z`;
-      out.rot=a; out.rx=36; out.rect=[cx-w/2,cy-h/2,w,h]; break; }
+      const w=rx*1.9,h=ry*1.5;
+      out.rot=lgR(r,-7,7); out.rx=36; out.rect=[cx-w/2,cy-h/2,w,h]; break; }
     case 'shield': {
       const w=rx*1.75, h=ry*1.85, t=cy-h/2, l=cx-w/2;
-      out.d=polyPath([[l,t+20],[l+w*.3,t],[cx,t+16],[l+w*.7,t],[l+w,t+20],[l+w*.94,t+h*.62],[cx,t+h],[l+w*.06,t+h*.62]]); break; }
+      out.d=polyPath([[l,t+20],[l+w*.3,t],[cx,t+16],[l+w*.7,t],[l+w,t+20],[l+w*.94,t+h*.62],[cx,t+h],[l+w*.06,t+h*.62]]);
+      out.tc=[cx,cy-ry*.12]; break; }
     case 'slash': {
       const w=rx*1.95, h=ry*1.25, k=60;
       out.d=polyPath([[cx-w/2+k,cy-h/2],[cx+w/2+k*.3,cy-h/2],[cx+w/2-k,cy+h/2],[cx-w/2-k*.3,cy+h/2]]); break; }
+    case 'band': {
+      const w=rx*2.0,h=ry*1.0,a=lgR(r,-6,-2);
+      out.rot=a; out.rx=10; out.rect=[cx-w/2,cy-h/2,w,h];
+      [cy-h/2-24, cy+h/2+12].forEach((y,i)=>{ out.over+=`<rect x="${f1(cx-w/2)}" y="${f1(y)}" width="${f1(w)}" height="12" rx="4" fill="${pal.accents[i]}" transform="rotate(${f1(a)} ${cx} ${cy})"/>`; });
+      out.tw=w*.86; break; }
+    case 'circlebadge': {
+      const R=ry*1.08; out.d=circlePath(cx,cy,R);
+      out.over+=`<circle cx="${cx}" cy="${cy}" r="${f1(R-16)}" fill="none" stroke="${pal.accents[1]}" stroke-width="5"/>`;
+      [70,90,110].forEach(deg=>{ const a=deg*Math.PI/180; out.over+=logoDecor('star',r,cx+Math.cos(a)*(R-40),cy+Math.sin(a)*(R-40),24,pal.accents[0],pal); });
+      out.tw=rx*1.75; out.tc=[cx,cy-14]; break; }
     case 'planet': {
-      out.d=`M${cx-ry*1.05},${cy} a${ry*1.05},${ry*1.05} 0 1 0 ${ry*2.1},0 a${ry*1.05},${ry*1.05} 0 1 0 ${-ry*2.1},0Z`;
+      out.d=circlePath(cx,cy,ry*1.05);
       const tilt=lgR(r,-16,-6);
       out.under+=`<ellipse cx="${cx}" cy="${cy}" rx="${f1(rx*1.18)}" ry="${f1(ry*.34)}" transform="rotate(${f1(tilt)} ${cx} ${cy})" fill="none" stroke="${pal.accents[0]}" stroke-width="10" opacity=".55"/>`;
       out.over+=`<path d="M${f1(cx-rx*1.18)},${cy} A${f1(rx*1.18)},${f1(ry*.34)} 0 0 0 ${f1(cx+rx*1.18)},${cy}" transform="rotate(${f1(tilt)} ${cx} ${cy})" fill="none" stroke="${pal.accents[0]}" stroke-width="10" opacity=".9"/>`;
-      break; }
-    case 'hexagon': out.d=polyPath(ring(cx,cy,rx*1.02,ry*1.08,6,()=>1).map(([x,y])=>[x,y])); break;
+      out.tw=ry*2.2; break; }
+    case 'hexagon': out.d=polyPath(ring(cx,cy,rx*1.02,ry*1.08,6,()=>1)); break;
     case 'orbit': {
       out.d=smoothPath(ring(cx,cy,rx,ry*.92,12,()=>1));
       for(let i=0;i<2;i++){ const t=lgR(r,-30,30);
         out.over+=`<ellipse cx="${cx}" cy="${cy}" rx="${f1(rx*1.12)}" ry="${f1(ry*.28)}" transform="rotate(${f1(t)} ${cx} ${cy})" fill="none" stroke="${pal.accents[i]}" stroke-width="4" opacity=".7"/>`; }
       break; }
+    case 'crest': {
+      const w=rx*1.45,h=ry*2.0,l=cx-w/2,t=cy-h/2;
+      out.d=`M${f1(l)},${f1(t+30)} L${f1(l+w*.25)},${f1(t)} L${f1(cx)},${f1(t+22)} L${f1(l+w*.75)},${f1(t)} L${f1(l+w)},${f1(t+30)} L${f1(l+w)},${f1(t+h*.5)} Q${f1(l+w)},${f1(t+h*.85)} ${f1(cx)},${f1(t+h)} Q${f1(l)},${f1(t+h*.85)} ${f1(l)},${f1(t+h*.5)}Z`;
+      out.over+=scaledCopy(out.d,cx,cy,.88,`fill="none" stroke="${pal.accents[0]}" stroke-width="4" opacity=".8"`);
+      out.tw=rx*1.75; out.tc=[cx,cy-ry*.12]; break; }
+    case 'scroll': {
+      const w=rx*1.7,h=ry*1.2,l=cx-w/2,t=cy-h/2,q=h*.16;
+      out.d=`M${f1(l)},${f1(t)} H${f1(l+w)} V${f1(t+h)} H${f1(l)}Z`;
+      [l,l+w].forEach(x=>{ out.mid+=`<rect x="${f1(x-q)}" y="${f1(t-14)}" width="${f1(q*2)}" height="${f1(h+28)}" rx="${f1(q)}" fill="${pal.shape2}" stroke="${pal.shadow}" stroke-width="5"/>`+
+        `<circle cx="${f1(x)}" cy="${f1(t-14+q)}" r="${f1(q*.45)}" fill="none" stroke="${pal.shadow}" stroke-width="4"/>`; });
+      out.tw=w*.86; break; }
     case 'drip': {
       const w=rx*1.9, top=cy-ry*.9, base=cy+ry*.5, l=cx-w/2; let d=`M${f1(l)},${f1(base)} V${f1(top+30)} Q${f1(l)},${f1(top)} ${f1(l+30)},${f1(top)} H${f1(l+w-30)} Q${f1(l+w)},${f1(top)} ${f1(l+w)},${f1(top+30)} V${f1(base)}`;
       const n=Math.floor(lgR(r,6,9)), step=w/n;
-      for(let i=n-1;i>=0;i--){ const x0=l+step*(i+1), x1=l+step*i, len=lgR(r,10,ry*.55), m=(x0+x1)/2, half=step*.32;
+      for(let i=n-1;i>=0;i--){ const x1=l+step*i, len=lgR(r,10,ry*.55), m=x1+step/2, half=step*.32;
         d+=` L${f1(m+half)},${f1(base)} V${f1(base+len)} A${f1(half)},${f1(half)} 0 0 1 ${f1(m-half)},${f1(base+len)} V${f1(base)} L${f1(x1)},${f1(base)}`; }
-      out.d=d+'Z'; break; }
+      out.d=d+'Z'; out.tc=[cx,cy-ry*.2]; break; }
     case 'moon': {
-      out.d=`M${cx-ry*1.05},${cy} a${ry*1.05},${ry*1.05} 0 1 0 ${ry*2.1},0 a${ry*1.05},${ry*1.05} 0 1 0 ${-ry*2.1},0Z`;
+      out.d=circlePath(cx,cy,ry*1.05);
       for(let i=0;i<4;i++){ const a=lgR(r,0,Math.PI*2), k=lgR(r,.2,.7), s=lgR(r,10,26);
         out.over+=`<circle cx="${f1(cx+Math.cos(a)*ry*k)}" cy="${f1(cy+Math.sin(a)*ry*k)}" r="${f1(s)}" fill="#000" opacity=".12"/>`; }
-      break; }
-    case 'tv': {
-      const w=rx*1.8, h=ry*1.55, l=cx-w/2, t=cy-h/2+12, b=24;
-      out.d=`M${f1(l+40)},${f1(t)} Q${f1(cx)},${f1(t-b)} ${f1(l+w-40)},${f1(t)} Q${f1(l+w+b)},${f1(t+h/2)} ${f1(l+w-40)},${f1(t+h)} Q${f1(cx)},${f1(t+h+b)} ${f1(l+40)},${f1(t+h)} Q${f1(l-b)},${f1(t+h/2)} ${f1(l+40)},${f1(t)}Z`;
-      const a1=lgR(r,-38,-22), a2=lgR(r,22,38), L=ry*.62, bx=cx, by=t-b*.6;
-      [a1,a2].forEach((a,i)=>{ const x=bx+Math.sin(a*Math.PI/180)*L, y=by-Math.cos(a*Math.PI/180)*L;
-        out.under+=`<line x1="${bx}" y1="${f1(by)}" x2="${f1(x)}" y2="${f1(y)}" stroke="${pal.shape2}" stroke-width="7" stroke-linecap="round"/><circle cx="${f1(x)}" cy="${f1(y)}" r="11" fill="${pal.accents[i]}" stroke="${pal.shadow}" stroke-width="4"/>`; });
-      break; }
+      out.tw=ry*2.2; break; }
+    case 'magnify': {
+      const R=ry*.96, lx=cx-34, ly=cy-16, a=Math.PI/4;
+      out.d=circlePath(lx,ly,R);
+      const x1=lx+Math.cos(a)*R*.92, y1=ly+Math.sin(a)*R*.92, x2=lx+Math.cos(a)*R*1.42, y2=ly+Math.sin(a)*R*1.42;
+      out.under+=`<line x1="${f1(x1)}" y1="${f1(y1)}" x2="${f1(x2)}" y2="${f1(y2)}" stroke="${pal.shadow}" stroke-width="40" stroke-linecap="round"/>`+
+        `<line x1="${f1(x1)}" y1="${f1(y1)}" x2="${f1(x2)}" y2="${f1(y2)}" stroke="${pal.accents[2]||pal.accents[0]}" stroke-width="26" stroke-linecap="round"/>`;
+      out.over+=`<circle cx="${f1(lx)}" cy="${f1(ly)}" r="${f1(R-5)}" fill="none" stroke="${pal.accents[0]}" stroke-width="10"/>`;
+      out.tc=[lx,ly]; out.tw=rx*1.7; break; }
+    case 'spotlight': {
+      [[-1,lgR(r,.15,.3)],[1,lgR(r,.15,.3)]].forEach(([s,k])=>{ const x0=cx+s*(LOGO_W/2-30);
+        out.under+=`<path d="${polyPath([[x0-s*10,-10],[x0+s*40,-10],[cx+s*rx*.2,cy+ry*.4],[cx-s*rx*.55,cy+ry*.1]])}" fill="${pal.accents[0]}" opacity="${f1(k*10)/10}"/>`; });
+      out.d=smoothPath(ring(cx,cy+10,rx*.95,ry*.82,12,()=>1)); out.tc=[cx,cy+10]; break; }
+    case 'tape': {
+      const w=rx*2.1,h=ry*.95,a=lgR(r,-9,-4);
+      out.rot=a; out.rx=4; out.rect=[cx-w/2,cy-h/2,w,h];
+      out.defs+=`<pattern id="${id}s" width="40" height="40" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="40" height="40" fill="${pal.shadow}"/><rect width="20" height="40" fill="${pal.accents[0]}"/></pattern>`;
+      [cy-h/2, cy+h/2-20].forEach(y=>{ out.over+=`<rect x="${f1(cx-w/2)}" y="${f1(y)}" width="${f1(w)}" height="20" fill="url(#${id}s)" transform="rotate(${f1(a)} ${cx} ${cy})"/>`; });
+      out.tw=w*.86; break; }
+    case 'heart': {
+      const sx=rx*.8, sy=ry*1.02;
+      out.d=heartPath(cx,cy+8,sx,sy); out.tc=[cx,cy-ry*.12]; out.tw=rx*1.5; break; }
+    case 'record': {
+      const R=ry*1.06; out.d=circlePath(cx,cy,R);
+      for(let k=1;k<=4;k++) out.over+=`<circle cx="${cx}" cy="${cy}" r="${f1(R*(.5+k*.11))}" fill="none" stroke="#ffffff" stroke-opacity=".12" stroke-width="2"/>`;
+      out.over+=`<circle cx="${cx}" cy="${cy}" r="${f1(R*.34)}" fill="${pal.accents[0]}" opacity=".9"/><circle cx="${cx}" cy="${cy}" r="7" fill="${pal.shadow}"/>`;
+      out.tw=rx*1.7; break; }
+    case 'marquee': {
+      const w=rx*1.9,h=ry*1.45; out.rx=26; out.rect=[cx-w/2,cy-h/2,w,h];
+      const l=cx-w/2+14, t=cy-h/2+14, iw=w-28, ih=h-28, per=2*(iw+ih), n=Math.round(per/36);
+      for(let i=0;i<n;i++){ let d=i*per/n, x, y;
+        if(d<iw){ x=l+d; y=t; } else if((d-=iw)<ih){ x=l+iw; y=t+d; } else if((d-=ih)<iw){ x=l+iw-d; y=t+ih; } else { d-=iw; x=l; y=t+ih-d; }
+        out.over+=`<circle cx="${f1(x)}" cy="${f1(y)}" r="6.5" fill="#fff6c2" stroke="${pal.accents[0]}" stroke-width="2"/>`; }
+      out.tw=w*.82; break; }
+    case 'ticket': {
+      const w=rx*1.9,h=ry*1.35,l=cx-w/2,t=cy-h/2,n=h*.16;
+      out.d=`M${f1(l)},${f1(t)} H${f1(l+w)} V${f1(cy-n)} A${f1(n)},${f1(n)} 0 0 0 ${f1(l+w)},${f1(cy+n)} V${f1(t+h)} H${f1(l)} V${f1(cy+n)} A${f1(n)},${f1(n)} 0 0 0 ${f1(l)},${f1(cy-n)}Z`;
+      out.over+=`<line x1="${f1(l+w*.84)}" y1="${f1(t+12)}" x2="${f1(l+w*.84)}" y2="${f1(t+h-12)}" stroke="${pal.shadow}" stroke-width="4" stroke-dasharray="10 9" opacity=".6"/>`;
+      out.over+=logoDecor('star',r,l+w*.92,cy,26,pal.accents[0],pal);
+      out.tc=[cx-w*.07,cy]; out.tw=w*.72; break; }
+    case 'plank': {
+      const w=rx*1.95,h=ry*1.12,l=cx-w/2,t=cy-h/2+16, j=()=>lgR(r,-6,6);
+      [[l+w*.2,l+w*.3],[l+w*.8,l+w*.7]].forEach(([x0,x1])=>{ out.under+=`<line x1="${f1(x0)}" y1="${f1(t+8)}" x2="${f1(x1)}" y2="${f1(t-70)}" stroke="#c9a36b" stroke-width="6" stroke-linecap="round"/>`; });
+      out.d=polyPath([[l+j(),t+j()],[cx,t+j()*.5],[l+w+j(),t+j()],[l+w+j(),t+h+j()],[cx,t+h+j()*.5],[l+j(),t+h+j()]]);
+      for(let k=1;k<=3;k++){ const y=t+h*k/4; out.over+=`<path d="M${f1(l+20)},${f1(y)} q${f1(w*.25)},${f1(lgR(r,-8,8))} ${f1(w*.5)},0 t${f1(w*.45)},0" fill="none" stroke="${pal.shadow}" stroke-width="3" opacity=".25"/>`; }
+      [[l+16,t+16],[l+w-16,t+16],[l+16,t+h-16],[l+w-16,t+h-16]].forEach(([x,y])=>{ out.over+=`<circle cx="${f1(x)}" cy="${f1(y)}" r="6" fill="${pal.shadow}" opacity=".7"/>`; });
+      out.tc=[cx,t+h/2]; out.tw=w*.86; break; }
+    case 'sheriff': {
+      const R=ry*1.12, pts=ring(cx,cy,R,R,12,i=>i%2?.62:1); out.d=polyPath(pts);
+      pts.filter((_,i)=>i%2===0).forEach(([x,y])=>{ out.mid+=`<circle cx="${f1(x)}" cy="${f1(y)}" r="15" fill="${pal.shape}" stroke="${pal.shadow}" stroke-width="3"/>`; });
+      out.over+=`<circle cx="${cx}" cy="${cy}" r="${f1(R*.5)}" fill="none" stroke="${pal.shadow}" stroke-width="4" opacity=".35"/>`;
+      out.tw=rx*1.7; break; }
+    case 'plaque': {
+      const w=rx*1.85,h=ry*1.3,l=cx-w/2,t=cy-h/2,c=26,i=12;
+      out.d=polyPath([[l+c,t],[l+w-c,t],[l+w,t+c],[l+w,t+h-c],[l+w-c,t+h],[l+c,t+h],[l,t+h-c],[l,t+c]]);
+      out.over+=`<path d="${polyPath([[l+c,t+i],[l+w-c,t+i],[l+w-i,t+c],[l+w-i,t+h-c],[l+w-c,t+h-i],[l+c,t+h-i],[l+i,t+h-c],[l+i,t+c]])}" fill="none" stroke="${pal.accents[0]}" stroke-width="3" opacity=".8"/>`;
+      out.tw=w*.86; break; }
+    case 'globe': {
+      const R=ry*1.06; out.d=circlePath(cx,cy,R);
+      [.38,.75].forEach(k=>{ out.over+=`<ellipse cx="${cx}" cy="${cy}" rx="${f1(R*k)}" ry="${f1(R)}" fill="none" stroke="${pal.shape2}" stroke-width="3" opacity=".55"/>`; });
+      [-.5,0,.5].forEach(k=>{ const y=cy+k*R, hw=Math.sqrt(R*R-(k*R)**2); out.over+=`<line x1="${f1(cx-hw)}" y1="${f1(y)}" x2="${f1(cx+hw)}" y2="${f1(y)}" stroke="${pal.shape2}" stroke-width="3" opacity=".55"/>`; });
+      out.tw=rx*1.75; break; }
+    case 'tv': tv('v', false); break;
+    case 'tvrabbit': tv('rabbit', false); break;
+    case 'tvlegs': tv('v', true); break;
     case 'sunset': {
-      out.d=`M${cx-ry*1.08},${cy} a${ry*1.08},${ry*1.08} 0 1 0 ${ry*2.16},0 a${ry*1.08},${ry*1.08} 0 1 0 ${-ry*2.16},0Z`;
-      out.stripes=true; break; }
+      out.d=circlePath(cx,cy,ry*1.08);
+      out.stripes=true; out.tw=ry*2.2; break; }
   }
   return out;
 }
@@ -657,13 +863,18 @@ function logoDecor(kind, r, x, y, s, color, pal){
       if(t===0) return `<path d="M${f1(x)},${f1(y-s*.6)} L${f1(x+s*.55)},${f1(y+s*.4)} L${f1(x-s*.55)},${f1(y+s*.4)}Z" fill="${color}" transform="rotate(${rot} ${f1(x)} ${f1(y)})"/>`;
       if(t===1) return `<rect x="${f1(x-s*.5)}" y="${f1(y-s*.18)}" width="${f1(s)}" height="${f1(s*.36)}" rx="4" fill="${color}" transform="rotate(${rot} ${f1(x)} ${f1(y)})"/>`;
       return logoDecor(kind==='memphis'?'squiggle':'dot', r, x, y, s, color, pal); }
-    case 'star': { const pts=ring(x,y,s*.6,s*.6,10,i=>i%2?.45:1); return `<path d="${polyPath(pts)}" fill="${color}"/>`; }
+    case 'star': return `<path d="${polyPath(ring(x,y,s*.6,s*.6,10,i=>i%2?.45:1))}" fill="${color}"/>`;
     case 'bolt': return `<path d="M${f1(x+s*.15)},${f1(y-s*.75)} L${f1(x-s*.4)},${f1(y+s*.08)} L${f1(x)},${f1(y+s*.08)} L${f1(x-s*.18)},${f1(y+s*.75)} L${f1(x+s*.42)},${f1(y-s*.12)} L${f1(x+s*.02)},${f1(y-s*.12)}Z" fill="${color}" stroke="${pal.stroke}" stroke-width="3" stroke-linejoin="round"/>`;
     case 'spark': return `<path d="M${f1(x-s*.6)},${f1(y)} L${f1(x+s*.6)},${f1(y)} M${f1(x)},${f1(y-s*.6)} L${f1(x)},${f1(y+s*.6)}" stroke="${color}" stroke-width="5" stroke-linecap="round" transform="rotate(${f1(lgR(r,0,45))} ${f1(x)} ${f1(y)})"/>`;
     case 'speed': return `<path d="M${f1(x-s*1.6)},${f1(y)} L${f1(x+s*.4)},${f1(y)}" stroke="${color}" stroke-width="${f1(lgR(r,4,9))}" stroke-linecap="round"/>`;
     case 'bat': { const w=s*1.1;
       return `<path d="M${f1(x)},${f1(y-w*.12)} Q${f1(x-w*.3)},${f1(y-w*.45)} ${f1(x-w)},${f1(y-w*.25)} Q${f1(x-w*.7)},${f1(y)} ${f1(x-w*.55)},${f1(y+w*.15)} Q${f1(x-w*.35)},${f1(y-w*.02)} ${f1(x-w*.2)},${f1(y+w*.18)} Q${f1(x)},${f1(y)} ${f1(x)},${f1(y+w*.12)} Q${f1(x)},${f1(y)} ${f1(x+w*.2)},${f1(y+w*.18)} Q${f1(x+w*.35)},${f1(y-w*.02)} ${f1(x+w*.55)},${f1(y+w*.15)} Q${f1(x+w*.7)},${f1(y)} ${f1(x+w)},${f1(y-w*.25)} Q${f1(x+w*.3)},${f1(y-w*.45)} ${f1(x)},${f1(y-w*.12)}Z" fill="${color}"/>`; }
     case 'drop': return `<path d="M${f1(x)},${f1(y-s*.6)} Q${f1(x+s*.45)},${f1(y+s*.05)} ${f1(x)},${f1(y+s*.45)} Q${f1(x-s*.45)},${f1(y+s*.05)} ${f1(x)},${f1(y-s*.6)}Z" fill="${color}"/>`;
+    case 'heart': return `<path d="${heartPath(x,y,s*.45,s*.5)}" fill="${color}" transform="rotate(${f1(lgR(r,-20,20))} ${f1(x)} ${f1(y)})"/>`;
+    case 'note': return `<g fill="${color}" transform="rotate(${f1(lgR(r,-15,15))} ${f1(x)} ${f1(y)})"><ellipse cx="${f1(x-s*.22)}" cy="${f1(y+s*.45)}" rx="${f1(s*.3)}" ry="${f1(s*.22)}"/>`+
+      `<rect x="${f1(x)}" y="${f1(y-s*.65)}" width="${f1(s*.11)}" height="${f1(s*1.1)}"/><path d="M${f1(x+s*.1)},${f1(y-s*.65)} q${f1(s*.5)},${f1(s*.15)} ${f1(s*.38)},${f1(s*.62)} q${f1(-s*.04)},${f1(-s*.3)} ${f1(-s*.38)},${f1(-s*.34)}Z"/></g>`;
+    case 'leaf': return `<path d="M${f1(x-s*.6)},${f1(y)} Q${f1(x)},${f1(y-s*.7)} ${f1(x+s*.6)},${f1(y)} Q${f1(x)},${f1(y+s*.7)} ${f1(x-s*.6)},${f1(y)}Z" fill="${color}" transform="rotate(${f1(lgR(r,-60,60))} ${f1(x)} ${f1(y)})"/>`;
+    case 'cloudpuff': return `<g fill="${color}" opacity=".9"><circle cx="${f1(x-s*.45)}" cy="${f1(y+s*.1)}" r="${f1(s*.38)}"/><circle cx="${f1(x)}" cy="${f1(y-s*.12)}" r="${f1(s*.5)}"/><circle cx="${f1(x+s*.48)}" cy="${f1(y+s*.12)}" r="${f1(s*.36)}"/></g>`;
   }
   return '';
 }
@@ -679,36 +890,44 @@ function logoLines(text){
   return best.lines;
 }
 const _lgCtx=document.createElement('canvas').getContext('2d');
-function lgMeasure(text, fontStack, size, spacing=0){
-  _lgCtx.font=`900 ${size}px ${fontStack}`;
+function lgMeasure(text, fontStack, size, spacing=0, weight=900){
+  _lgCtx.font=`${weight} ${size}px ${fontStack}`;
   return _lgCtx.measureText(text).width + Math.max(0,text.length-1)*spacing*size;
 }
 
-// One line of chunky type: shadow, thick outline, fill; per-letter bounce for toon/comedy.
-function logoTextLine(text, cx, baseline, size, st, r, fill, pal, idx){
-  const font=LOGO_FONTS[st.font], sp=st.spacing||0;
-  const attrs=`font-family="${font}" font-weight="900" font-size="${f1(size)}"`;
-  const sw=f1(size*.15), shOff=f1(size*.07);
-  const skew=st.skew?` skewX(${st.skew})`:'';
+// One line of chunky type: shadow, thick outline, fill. Per-letter placement
+// gives toon/comedy bounce, and lets any style curve its text along an arc.
+function logoTextLine(text, cx, baseline, size, st, r, fill, pal, idx, arc){
+  const font=LOGO_FONTS[st.font], sp=st.spacing||0, wt=st.weight||900;
+  const attrs=`font-family="${font}" font-weight="${wt}" font-size="${f1(size)}"`;
+  const sw=f1(size*(st.font==='script'?.1:.15)), shOff=f1(size*.07);
+  const total=lgMeasure(text,font,size,sp,wt);
   let glyphs;  // [{ch,x,y,rot}]
-  const total=lgMeasure(text,font,size,sp);
-  if(st.perLetter||st.jitter){
+  if(st.perLetter||st.jitter||arc){
     glyphs=[...text].map((ch,i,arr)=>{
-      const x=cx-total/2+lgMeasure(arr.slice(0,i).join(''),font,size,sp)+(i?sp*size:0);
-      const y=baseline+(st.perLetter?Math.sin(i*1.9+idx*1.3)*size*.05:lgR(r,-1,1)*size*.03);
-      const rot=st.tilt||st.perLetter?lgR(r,-7,7):lgR(r,-3,3);
-      return {ch,x,y,rot};
+      const x=cx-total/2+lgMeasure(arr.slice(0,i).join(''),font,size,sp,wt)+(i?sp*size:0);
+      const w=lgMeasure(ch,font,size,0,wt), dx=x+w/2-cx;
+      let y=baseline+(st.perLetter?Math.sin(i*1.9+idx*1.3)*size*.05:st.jitter?lgR(r,-1,1)*size*.03:0);
+      let rot=st.tilt||st.perLetter?lgR(r,-7,7):st.jitter?lgR(r,-3,3):0;
+      if(arc){ y+=arc*dx*dx; rot+=Math.atan(2*arc*dx)*180/Math.PI; }
+      return {ch,x,y,rot,w};
     });
   } else glyphs=[{ch:text,x:cx-total/2,y:baseline,rot:0}];
-  const ls=sp?` letter-spacing="${f1(sp*size)}"`:'';
+  const ls=sp&&glyphs.length===1?` letter-spacing="${f1(sp*size)}"`:'';
   const g=(extra,dx=0,dy=0)=>glyphs.map(q=>q.ch.trim()?
-    `<text x="${f1(q.x+dx)}" y="${f1(q.y+dy)}" ${attrs}${ls}${q.rot?` transform="rotate(${f1(q.rot)} ${f1(q.x+size*.3)} ${f1(q.y-size*.35)})"`:''} ${extra}>${escHtml(q.ch)}</text>`:'').join('');
-  const wrap=s=>skew?`<g transform="translate(${f1(cx)} ${f1(baseline)})${skew} translate(${f1(-cx)} ${f1(-baseline)})">${s}</g>`:s;
+    `<text x="${f1(q.x+dx)}" y="${f1(q.y+dy)}" ${attrs}${ls}${q.rot?` transform="rotate(${f1(q.rot)} ${f1(q.x+(q.w||size*.6)/2)} ${f1(q.y-size*.35)})"`:''} ${extra}>${escHtml(q.ch)}</text>`:'').join('');
+  const wrap=s=>st.skew?`<g transform="translate(${f1(cx)} ${f1(baseline)}) skewX(${st.skew}) translate(${f1(-cx)} ${f1(-baseline)})">${s}</g>`:s;
   let svg='';
   if(st.echo) svg+=g(`fill="none" stroke="${pal.text2}" stroke-width="3" opacity=".35"`, -size*.08, -size*.1);
   svg+=g(`fill="${pal.shadow}" stroke="${pal.shadow}" stroke-width="${sw}" stroke-linejoin="round"`, shOff, shOff);
   svg+=g(`fill="${fill}" stroke="${pal.stroke}" stroke-width="${sw}" stroke-linejoin="round" paint-order="stroke"`);
-  return wrap(svg);
+  return {svg:wrap(svg), width:total};
+}
+// Banner ribbon behind a line of text, with notched, folded-back tails.
+function logoRibbon(cx, midY, w, h, fill, pal){
+  const l=cx-w/2, t=midY-h/2, tl=h*.75, back=h*.22;
+  const tail=s=>{ const x=s<0?l:l+w; return `<path d="${polyPath([[x,t+back],[x+s*tl,t+back],[x+s*tl*.62,t+back+h/2],[x+s*tl,t+back+h],[x,t+back+h]])}" fill="${pal.shadow}"/>`; };
+  return tail(-1)+tail(1)+`<rect x="${f1(l)}" y="${f1(t)}" width="${f1(w)}" height="${f1(h)}" fill="${fill}" stroke="${pal.shadow}" stroke-width="4"/>`;
 }
 
 function generateLogoSvg({text, style, variant=0}){
@@ -716,21 +935,34 @@ function generateLogoSvg({text, style, variant=0}){
   const r=seededRng(`${style}|${variant}`);
   const pal=lgPick(r,st.palettes), shapeKind=lgPick(r,st.shapes);
   const cx=LOGO_W/2, cy=LOGO_H/2+6, rx=lgR(r,262,282), ry=lgR(r,172,186);
-  const sh=logoShape(shapeKind, r, cx, cy, rx, ry, pal);
-  const lines=logoLines(text).map(s=>s.toUpperCase());
-  const id='lg'+(hashStr(style+variant)%1e6);
+  const id='lg'+(hashStr(style+'|'+variant)%1e7);
+  const sh=logoShape(shapeKind, r, cx, cy, rx, ry, pal, id);
+  const arcRoll=r(), ribbonRoll=r(), arcK=lgR(r,.0007,.0013)*(r()<.75?1:-1);
+  const lines=logoLines(text).map(s=>st.keepCase?s:s.toUpperCase());
+  const ribbon = lines.length>1 && st.ribbon && ribbonRoll<st.ribbon;
+  const arc = st.arc && arcRoll<st.arc ? arcK : 0;
   // text sizing: fit each line to the backdrop's width
-  const font=LOGO_FONTS[st.font], sp=st.spacing||0;
-  const maxW=(shapeKind==='planet'||shapeKind==='moon'||shapeKind==='sunset'? ry*2.2 : rx*1.62);
-  const caps=lines.length>1?[128,92]:[150];
-  const sizes=lines.map((l,i)=>Math.max(28,Math.min(caps[i], caps[i]*maxW/lgMeasure(l,font,caps[i],sp))));
-  const gap=lines.length>1?sizes[1]*.18:0;
+  const font=LOGO_FONTS[st.font], sp=st.spacing||0, wt=st.weight||900;
+  const [tcx,tcy]=sh.tc||[cx,cy];
+  const maxW=sh.tw||rx*1.62;
+  const caps=lines.length>1?[128,ribbon?78:92]:[150];
+  const sizes=lines.map((l,i)=>Math.max(28,Math.min(caps[i], caps[i]*maxW*(ribbon&&i?.8:1)/lgMeasure(l,font,caps[i],sp,wt))));
+  const gap=lines.length>1?sizes[1]*(ribbon?.42:.18):0;
   const blockH=sizes.reduce((a,s)=>a+s*.74,0)+gap;
-  let y=cy-blockH/2+sizes[0]*.74+(shapeKind==='drip'?-ry*.18:0);
+  let y=tcy-blockH/2+sizes[0]*.74;
   const textSvg=lines.map((l,i)=>{
     if(i) y+=gap+sizes[i]*.74;
-    const fill=i===0?pal.text:pal.text2;
-    return logoTextLine(l, cx, y, sizes[i], st, r, fill, pal, i);
+    let fill=i===0?pal.text:pal.text2, rib='';
+    if(ribbon && i===1){
+      // ribbon colour: whichever of the shape's tones contrasts most with the
+      // text; if none is clear enough, switch the text to white or near-black
+      const opts=[pal.accents[0], pal.shadow, pal.shape2], tl=hexLum(fill);
+      const rf=opts.reduce((b,c)=>Math.abs(hexLum(c)-tl)>Math.abs(hexLum(b)-tl)?c:b);
+      if(Math.abs(hexLum(rf)-tl)<.4) fill=hexLum(rf)>.5?'#141414':'#ffffff';
+      rib=rf;
+    }
+    const t=logoTextLine(l, tcx, y, sizes[i], st, r, fill, pal, i, i===0?arc:0);
+    return (rib?logoRibbon(tcx, y-sizes[i]*.36, t.width+sizes[i]*1.1, sizes[i]*1.18, rib, pal):'')+t.svg;
   }).join('');
   // decorations on a ring around the backdrop edge, kept clear of the text's middle band
   let decor='';
@@ -748,13 +980,13 @@ function generateLogoSvg({text, style, variant=0}){
     : (o,fill)=>`<path d="${sh.d}" fill="${fill}"${o?` transform="translate(${o} ${o})"`:''}/>`;
   const stripes = sh.stripes ? `<clipPath id="${id}c"><path d="${sh.d}"/></clipPath><g clip-path="url(#${id}c)">`+
       [0,1,2,3].map(i=>`<rect x="0" y="${f1(cy+ry*.18+i*ry*.2)}" width="${LOGO_W}" height="${f1(ry*.09+i*2)}" fill="${pal.shadow}" opacity=".55"/>`).join('')+`</g>` : '';
-  const gloss = ['blob','splat','softburst','planet','moon','orbit'].includes(shapeKind)
+  const gloss = ['blob','splat','goo','softburst','planet','moon','orbit','record','globe','circlebadge','magnify','heart'].includes(shapeKind)
     ? `<ellipse cx="${f1(cx-rx*.45)}" cy="${f1(cy-ry*.55)}" rx="${f1(rx*.22)}" ry="${f1(ry*.12)}" transform="rotate(-25 ${f1(cx-rx*.45)} ${f1(cy-ry*.55)})" fill="#fff" opacity=".22"/>` : '';
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${LOGO_W}" height="${LOGO_H}" viewBox="0 0 ${LOGO_W} ${LOGO_H}">`+
     `<defs><radialGradient id="${id}g" cx="40%" cy="35%" r="75%"><stop offset="0" stop-color="${pal.shape2}"/><stop offset="1" stop-color="${pal.shape}"/></radialGradient>`+
     `<linearGradient id="chrome" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".46" stop-color="#cfe9ff"/>`+
-    `<stop offset=".5" stop-color="#5a5fb0"/><stop offset=".56" stop-color="#a9dcff"/><stop offset="1" stop-color="#ffffff"/></linearGradient></defs>`+
-    sh.under + body(14, pal.shadow) + body(0, `url(#${id}g)`) + stripes + gloss + sh.over + decor + textSvg + `</svg>`;
+    `<stop offset=".5" stop-color="#5a5fb0"/><stop offset=".56" stop-color="#a9dcff"/><stop offset="1" stop-color="#ffffff"/></linearGradient>${sh.defs}</defs>`+
+    sh.under + body(14, pal.shadow) + body(0, `url(#${id}g)`) + sh.mid + stripes + gloss + sh.over + decor + textSvg + `</svg>`;
 }
 async function logoPng(svg){
   const img=new Image();
@@ -782,32 +1014,59 @@ async function setChannelLogo(ch, logo){
   State.channels=await api('GET','/channels');
   return up.fileUrl;
 }
-// Reusable editor: preview + style picker + Shuffle (+ optional text field).
-// Returns {get()} -> {text, style, variant}.
+// Reusable editor: big preview + a grid of designs to click, paged with ‹ ›.
+// Style "All styles" mixes every style family into the grid.
+// Returns {get() -> {text, style, variant}, buttons (row for extra controls)}.
 function mountLogoEditor(box, init, {compact=false, textInput=null}={}){
-  const st={text:init.text||'', style:init.style||'retro', variant:init.variant!=null?init.variant:hashStr(init.text||'')%97};
+  const N=compact?4:8, keys=Object.keys(LOGO_STYLES);
+  const sel={style:LOGO_STYLES[init.style]?init.style:'retro',
+    variant:init.variant!=null?init.variant:hashStr(init.text||'')%N};  // unsaved: a name-picked design on page 1
+  let browse=sel.style, page=Math.floor(sel.variant/N);
   box.innerHTML='';
   box.classList.add('logo-ed'); box.classList.toggle('compact',compact);
   const prev=el('div','logo-prev'), ctl=el('div','logo-ctl');
   let txt=textInput;
   if(!txt){
     ctl.append(el('label','lab2','Logo text'));
-    txt=el('input','search-in'); txt.value=st.text; txt.placeholder='Channel name';
+    txt=el('input','search-in'); txt.value=init.text||''; txt.placeholder='Channel name';
     ctl.append(txt, el('div','hint','Use “/” to choose where it splits into two lines.'));
   }
   ctl.append(el('label','lab2','Style'));
-  const sel=el('select','search-in');
-  Object.entries(LOGO_STYLES).forEach(([k,s])=>sel.append(new Option(s.label,k)));
-  sel.value=st.style; ctl.append(sel);
-  const row=el('div','logo-btns');
-  const shuf=el('button','btn ghost sm','⟳ Shuffle'); shuf.title='Next design in this style';
-  row.append(shuf); ctl.append(row);
-  const draw=()=>{ prev.innerHTML=generateLogoSvg(st); };
-  txt.addEventListener('input',()=>{ st.text=txt.value; draw(); });
-  sel.onchange=()=>{ st.style=sel.value; draw(); };
-  shuf.onclick=()=>{ st.variant++; draw(); };
-  box.append(prev, ctl); draw();
-  return { get:()=>({...st, text:txt.value.trim()||st.text}), buttons:row };
+  const styleSel=el('select','search-in');
+  styleSel.append(new Option('All styles — mix them up','*'));
+  keys.forEach(k=>styleSel.append(new Option(LOGO_STYLES[k].label,k)));
+  styleSel.value=browse; ctl.append(styleSel);
+  const row=el('div','logo-btns'); ctl.append(row);
+  const grid=el('div','logo-grid');
+  const nav=el('div','logo-nav');
+  const back=el('button','btn ghost sm','‹'), fwd=el('button','btn ghost sm','More designs ›'), pg=el('span','pg');
+  back.title='Previous designs';
+  nav.append(back, pg, fwd);
+  const text=()=>txt.value.trim()||init.text||'';
+  const designs=()=>Array.from({length:N},(_,i)=>{ const idx=page*N+i;
+    return browse==='*' ? {style:keys[idx%keys.length], variant:Math.floor(idx/keys.length)} : {style:browse, variant:idx}; });
+  let raf=0;
+  const draw=()=>{ cancelAnimationFrame(raf); raf=requestAnimationFrame(()=>{
+    const t=text();
+    prev.innerHTML=generateLogoSvg({...sel,text:t});
+    grid.innerHTML='';
+    designs().forEach(d=>{
+      const th=el('div','logo-thumb'+(d.style===sel.style&&d.variant===sel.variant?' on':''));
+      th.title=LOGO_STYLES[d.style].label.split(' — ')[0]+` · design ${d.variant+1}`;
+      th.innerHTML=generateLogoSvg({...d,text:t});
+      th.onclick=()=>{ sel.style=d.style; sel.variant=d.variant; draw(); };
+      grid.append(th);
+    });
+    back.disabled=page===0;
+    pg.textContent=`Designs ${page*N+1}–${page*N+N}`;
+  }); };
+  txt.addEventListener('input',draw);
+  styleSel.onchange=()=>{ browse=styleSel.value; page=0;
+    if(browse!=='*'){ sel.style=browse; sel.variant=0; } draw(); };
+  back.onclick=()=>{ if(page>0){ page--; draw(); } };
+  fwd.onclick=()=>{ page++; draw(); };
+  box.append(prev, ctl, grid, nav); draw();
+  return { get:()=>({style:sel.style, variant:sel.variant, text:text()}), buttons:row };
 }
 
 /* ---------- channel options: rename / delete ---------- */
