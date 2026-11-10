@@ -236,30 +236,45 @@
     border:1px solid #5a2a2a;border-radius:9px;background:rgba(200,60,60,.06)}
   .danger-zone > div{flex:1}
   .danger-zone .hint{font-size:11px;color:var(--ink-faint);margin-top:2px}
-  /* logo editor */
+  /* logo designer */
+  .modal.xwide{max-width:940px}
   .co-section{margin-top:16px;padding-top:12px;border-top:1px solid var(--line)}
-  .co-head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
-  .co-head .hint{font-size:11px;color:var(--ink-faint);display:flex;align-items:center;gap:6px}
-  .cur-logo{height:28px;border-radius:4px}
+  .co-logo{display:flex;gap:14px;align-items:center}
+  .co-logo .hint{font-size:11px;color:var(--ink-faint);margin-top:2px}
+  .co-logo-img{width:150px;aspect-ratio:4/3;flex:none;display:flex;align-items:center;justify-content:center;
+    border:1px solid var(--line);border-radius:9px;font-size:11px;color:var(--ink-faint);
+    background:repeating-conic-gradient(#1a1f2b 0 25%, #151924 0 50%) 0 0/12px 12px}
+  .co-logo-img img{max-width:100%;max-height:100%}
   .head-logo{height:40px;max-width:60px;object-fit:contain;align-self:center}
-  .logo-ed{display:grid;grid-template-columns:320px 1fr;gap:14px;align-items:start}
-  .logo-ed.compact{grid-template-columns:160px 1fr;gap:12px}
+  .logo-ed{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:14px;align-items:start}
+  .logo-ed.compact{grid-template-columns:190px minmax(0,1fr);gap:12px}
   .logo-prev{background:repeating-conic-gradient(#1a1f2b 0 25%, #151924 0 50%) 0 0/16px 16px;border:1px solid var(--line);
     border-radius:9px;aspect-ratio:4/3;overflow:hidden}
   .logo-prev svg{width:100%;height:100%;display:block}
-  .logo-ctl{display:flex;flex-direction:column;gap:5px;min-width:0}
-  .logo-ctl .search-in{width:100%}
-  .logo-ctl .hint{font-size:11px;color:var(--ink-faint)}
+  .logo-side{display:flex;flex-direction:column;gap:5px;min-width:0}
+  .logo-side .search-in{width:100%}
+  .logo-side .hint{font-size:11px;color:var(--ink-faint)}
+  .logo-acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+  .logo-acts .btn:disabled{opacity:.4;cursor:default}
+  .logo-panel{grid-column:1/-1;border-top:1px solid var(--line);padding-top:10px}
+  .logo-panel .subtabs{margin-bottom:10px}
+  .logo-tab{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:9px 14px;align-items:end}
+  .logo-field{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--ink-faint);min-width:0}
+  .logo-field .search-in{width:100%;padding:5px 8px}
+  .logo-field input[type=color]{width:100%;height:28px;border:1px solid var(--line);border-radius:6px;background:var(--panel-2);padding:2px;cursor:pointer}
+  .logo-toggle{flex-direction:row;align-items:center;gap:7px;font-size:12px;color:var(--ink-dim);cursor:pointer;padding-bottom:5px}
+  .logo-toggle input{accent-color:var(--accent)}
+  .slider-row{display:flex;align-items:center;gap:6px}
+  .slider-row input{flex:1;min-width:0;accent-color:var(--accent)}
+  .slider-row .val{font-family:var(--mono);font-size:10px;color:var(--ink-dim);min-width:34px;text-align:right}
+  .tab-dice{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap}
+  .swatches{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px}
+  .swatch{width:44px;height:22px;border-radius:5px;border:1px solid var(--line);cursor:pointer;display:flex;overflow:hidden;padding:0;background:none}
+  .swatch span{flex:1}
+  .swatch:hover{outline:2px solid var(--accent)}
+  .chips{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:5px}
+  .logo-sub{grid-column:1/-1;font-size:11px;color:var(--ink-faint);margin-bottom:-4px}
   .logo-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;align-items:center}
-  .logo-grid{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-  .logo-ed.compact .logo-grid{gap:6px}
-  .logo-thumb{aspect-ratio:4/3;border:2px solid var(--line);border-radius:8px;cursor:pointer;overflow:hidden;
-    background:repeating-conic-gradient(#1a1f2b 0 25%, #151924 0 50%) 0 0/12px 12px}
-  .logo-thumb:hover{border-color:#4a5368}
-  .logo-thumb.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
-  .logo-thumb svg{width:100%;height:100%;display:block}
-  .logo-nav{grid-column:1/-1;display:flex;align-items:center;gap:8px;margin-top:-4px}
-  .logo-nav .pg{flex:1;text-align:center;font-family:var(--mono);font-size:11px;color:var(--ink-faint)}
   .logo-btns label{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-dim);cursor:pointer}
   .logo-btns input[type=checkbox]{accent-color:var(--accent)}
   #pkLogo{margin-top:12px}
@@ -430,7 +445,8 @@ function toast(msg, kind='ok', ms=3200){
 /* ---------- confirm modal ---------- */
 function confirmModal(title, body){
   return new Promise(res=>{
-    $('#modalOk').style.display=''; $('#modalCancel').textContent='Cancel';
+    $('#modalOk').style.display=''; $('#modalOk').textContent='Confirm'; $('#modalOk').disabled=false;
+    $('#modalCancel').textContent='Cancel'; $('.modal').classList.remove('xwide');
     $('#modalTitle').textContent = title;
     $('#modalBody').innerHTML = body;
     $('#modalBg').classList.add('show');
@@ -443,7 +459,8 @@ function confirmModal(title, body){
 /* ---------- prompt modal (text input) ---------- */
 function promptModal(title, label, placeholder='', initial=''){
   return new Promise(res=>{
-    $('#modalOk').style.display=''; $('#modalCancel').textContent='Cancel';
+    $('#modalOk').style.display=''; $('#modalOk').textContent='Confirm'; $('#modalOk').disabled=false;
+    $('#modalCancel').textContent='Cancel'; $('.modal').classList.remove('xwide');
     $('#modalTitle').textContent = title;
     $('#modalBody').innerHTML =
       `<label style="display:block;margin-bottom:6px;color:var(--ink-dim);font-size:13px">${label}</label>`+
@@ -458,8 +475,9 @@ function promptModal(title, label, placeholder='', initial=''){
 }
 
 function closeModal(){
-  $('#modalBg').classList.remove('show'); $('.modal').classList.remove('wide');
-  $('#modalOk').style.display=''; $('#modalCancel').textContent='Cancel';
+  $('#modalBg').classList.remove('show'); $('.modal').classList.remove('wide','xwide');
+  $('#modalOk').style.display=''; $('#modalOk').textContent='Confirm'; $('#modalOk').disabled=false;
+  $('#modalCancel').textContent='Cancel';
   $('#modalOk').onclick=null; $('#modalCancel').onclick=null;
 }
 
@@ -523,7 +541,34 @@ const LOGO_FONTS={
   slab:"Rockwell,'Rockwell Extra Bold','Roboto Slab','Courier New',serif",
   serif:"Georgia,'Palatino Linotype','Book Antiqua','Times New Roman',serif",
   script:"'Brush Script MT','Segoe Script','Lucida Handwriting',cursive",
+  comic:"'Comic Sans MS','Chalkboard SE','Comic Neue',cursive",
+  marker:"'Segoe Print','Bradley Hand','Comic Sans MS',cursive",
+  condensed:"'Arial Narrow','Roboto Condensed','Franklin Gothic Medium',Impact,sans-serif",
+  stencil:"Stencil,'Stencil Std','Arial Black',sans-serif",
+  mono:"'Courier New',Courier,monospace",
 };
+const LOGO_FONT_LABELS={round:'Rounded',heavy:'Heavy',impact:'Impact',slab:'Slab',serif:'Serif',script:'Script',
+  comic:'Comic',marker:'Marker',condensed:'Condensed',stencil:'Stencil',mono:'Typewriter'};
+const LOGO_SHAPES=[['blob','Blob'],['splat','Splat'],['goo','Slime drip'],['bubbles','Bubbles'],['cloud','Cloud'],
+  ['rainbowcloud','Rainbow cloud'],['speech','Speech bubble'],['softburst','Soft burst'],['burst','Starburst'],
+  ['sharpburst','Sharp burst'],['shard','Shattered'],['spiky','Spiky'],['stamp','Seal'],['star5','Big star'],
+  ['sheriff','Sheriff star'],['circle','Circle'],['circlebadge','Round badge'],['planet','Ringed planet'],['moon','Moon'],
+  ['globe','Globe'],['record','Record'],['sunset','Sunset'],['magnify','Magnifier'],['heart','Heart'],['pill','Pill'],
+  ['roundrect','Rounded box'],['badge','Tilted badge'],['band','Stripe band'],['tape','Caution tape'],['wavy','Wavy box'],
+  ['flag','Waving flag'],['ticket','Ticket'],['marquee','Marquee lights'],['plaque','Plaque'],['plank','Wood sign'],
+  ['scroll','Scroll'],['tag','Tag'],['arrow','Arrow banner'],['slash','Slash'],['diamond','Diamond'],['hexagon','Hexagon'],
+  ['octagon','Octagon'],['triangle','Triangle'],['shield','Shield'],['crest','Crest'],['lightning','Lightning bolt'],
+  ['drip','Drippy box'],['spotlight','Spotlights'],['orbit','Orbits'],['tv','TV set'],['tvrabbit','TV, rabbit ears'],['tvlegs','TV with legs']];
+const LOGO_DECOR=[['sparkle','Sparkles'],['star','Stars'],['dot','Dots'],['ring','Rings'],['squiggle','Squiggles'],
+  ['zigzag','Zigzags'],['triangle','Triangles'],['confetti','Confetti'],['memphis','Memphis bits'],['bolt','Bolts'],
+  ['spark','Sparks'],['speed','Speed lines'],['heart','Hearts'],['note','Music notes'],['leaf','Leaves'],
+  ['cloudpuff','Clouds'],['drop','Drops'],['bat','Bats']];
+const LOGO_PATTERNS=[['none','None'],['stripes','Stripes'],['diagonal','Diagonal stripes'],['dots','Polka dots'],
+  ['checker','Checkers'],['zigzag','Zigzag'],['grid','Grid'],['rays','Sunburst rays']];
+const LOGO_OUTLINES=[['none','None'],['white','White'],['dark','Dark'],['accent','Accent'],['double','Double']];
+const LOGO_SHADOWS=[['none','None'],['drop','Drop'],['deep','Deep'],['extrude','3-D']];
+const LOGO_BGS=[['none','Transparent'],['solid','Solid'],['stars','Starfield'],['rays','Sunburst'],['grid','Retro grid']];
+const LOGO_TEXT_SHADOWS=[['none','None'],['drop','Drop'],['3d','3-D'],['glow','Glow']];
 // LP(shape, shape2, shadow, text, text2, stroke, ...accents)
 const LP=(shape,shape2,shadow,text,text2,stroke,...accents)=>({shape,shape2,shadow,text,text2,stroke,accents});
 // Order matters for name-keyword guessing: more specific styles first.
@@ -837,6 +882,35 @@ function logoShape(kind, r, cx, cy, rx, ry, pal, id){
       [.38,.75].forEach(k=>{ out.over+=`<ellipse cx="${cx}" cy="${cy}" rx="${f1(R*k)}" ry="${f1(R)}" fill="none" stroke="${pal.shape2}" stroke-width="3" opacity=".55"/>`; });
       [-.5,0,.5].forEach(k=>{ const y=cy+k*R, hw=Math.sqrt(R*R-(k*R)**2); out.over+=`<line x1="${f1(cx-hw)}" y1="${f1(y)}" x2="${f1(cx+hw)}" y2="${f1(y)}" stroke="${pal.shape2}" stroke-width="3" opacity=".55"/>`; });
       out.tw=rx*1.75; break; }
+    case 'circle': out.d=circlePath(cx,cy,ry*1.08); out.tw=ry*2.15; break;
+    case 'pill': { const w=rx*1.95,h=ry*1.2; out.rect=[cx-w/2,cy-h/2,w,h]; out.rx=h/2; out.tw=w*.84; break; }
+    case 'roundrect': { const w=rx*1.9,h=ry*1.5; out.rect=[cx-w/2,cy-h/2,w,h]; out.rx=f1(lgR(r,10,48)); break; }
+    case 'diamond': out.d=polyPath([[cx,cy-ry*1.18],[cx+rx*1.1,cy],[cx,cy+ry*1.18],[cx-rx*1.1,cy]]); out.tw=rx*1.3; break;
+    case 'star5': out.d=polyPath(ring(cx,cy+14,ry*1.28,ry*1.28,10,i=>i%2?.52:1)); out.tw=ry*1.9; out.tc=[cx,cy+22]; break;
+    case 'octagon': out.d=polyPath(Array.from({length:8},(_,i)=>{ const a=(i+.5)/8*Math.PI*2; return [cx+Math.cos(a)*rx*1.04, cy+Math.sin(a)*ry*1.12]; })); break;
+    case 'triangle': out.d=polyPath([[cx-rx*1.12,cy-ry*.98],[cx+rx*1.12,cy-ry*.98],[cx,cy+ry*1.22]]); out.tc=[cx,cy-ry*.5]; out.tw=rx*1.5; break;
+    case 'shard': out.d=polyPath(ring(cx,cy,rx*1.02,ry*1.02,Math.floor(lgR(r,9,14)),()=>lgR(r,.74,1.1))); break;
+    case 'stamp': out.d=polyPath(ring(cx,cy,ry*1.1,ry*1.1,44,i=>i%2?.93:1)); out.tw=ry*2.05;
+      out.over+=`<circle cx="${cx}" cy="${cy}" r="${f1(ry*.92)}" fill="none" stroke="${pal.shadow}" stroke-width="4" stroke-dasharray="3 9" stroke-linecap="round" opacity=".55"/>`; break;
+    case 'bubbles': {
+      const bs=[[cx,cy,ry*.82]]; for(let i=0;i<7;i++){ const a=lgR(r,0,Math.PI*2); bs.push([cx+Math.cos(a)*rx*lgR(r,.45,.75), cy+Math.sin(a)*ry*lgR(r,.35,.6), ry*lgR(r,.38,.6)]); }
+      out.d=bs.map(([x,y,R])=>circlePath(x,y,R)).join(' '); break; }
+    case 'wavy': case 'flag': {
+      const w=rx*1.9,h=ry*1.35,l=cx-w/2,t=cy-h/2,n=40,amp=kind==='flag'?16:8,waves=kind==='flag'?1.6:5, ph=lgR(r,0,6);
+      const top=[], bot=[];
+      for(let i=0;i<=n;i++){ const x=l+w*i/n, s=Math.sin(ph+i/n*Math.PI*2*waves)*amp;
+        top.push([x,t+s]); bot.push([x,t+h+(kind==='flag'?s:-s)]); }
+      out.d=polyPath([...top,...bot.reverse()]); out.tw=w*.86; break; }
+    case 'arrow': {
+      const w=rx*1.95,h=ry*1.2,l=cx-w/2,t=cy-h/2;
+      out.d=polyPath([[l,t],[l+w-70,t],[l+w,cy],[l+w-70,t+h],[l,t+h],[l+50,cy]]); out.tc=[cx-8,cy]; out.tw=w*.74; break; }
+    case 'tag': {
+      const w=rx*1.9,h=ry*1.3,l=cx-w/2,t=cy-h/2;
+      out.d=polyPath([[l+70,t],[l+w,t],[l+w,t+h],[l+70,t+h],[l,cy]])+' '+circlePath(l+52,cy,14);
+      out.evenodd=true; out.tc=[cx+24,cy]; out.tw=w*.74; break; }
+    case 'lightning': {
+      out.d=polyPath([[cx-rx*.35,cy-ry*1.2],[cx+rx*.75,cy-ry*1.2],[cx+rx*.28,cy-ry*.25],[cx+rx*1.05,cy-ry*.25],
+        [cx-rx*.55,cy+ry*1.25],[cx-rx*.12,cy+ry*.2],[cx-rx*1.0,cy+ry*.2]]); out.tw=rx*1.7; break; }
     case 'tv': tv('v', false); break;
     case 'tvrabbit': tv('rabbit', false); break;
     case 'tvlegs': tv('v', true); break;
@@ -895,32 +969,39 @@ function lgMeasure(text, fontStack, size, spacing=0, weight=900){
   return _lgCtx.measureText(text).width + Math.max(0,text.length-1)*spacing*size;
 }
 
-// One line of chunky type: shadow, thick outline, fill. Per-letter placement
-// gives toon/comedy bounce, and lets any style curve its text along an arc.
-function logoTextLine(text, cx, baseline, size, st, r, fill, pal, idx, arc){
-  const font=LOGO_FONTS[st.font], sp=st.spacing||0, wt=st.weight||900;
+// One line of chunky type: optional glow / 3-D / drop shadow, outline, fill.
+// Per-letter placement gives bounce and wobble, and lets text follow an arc.
+function logoTextLine(text, cx, baseline, size, spec, r, fill, pal, idx, arcK){
+  const font=LOGO_FONTS[spec.font]||LOGO_FONTS.heavy, sp=spec.spacing||0, wt=spec.font==='script'||spec.font==='marker'?700:900;
   const attrs=`font-family="${font}" font-weight="${wt}" font-size="${f1(size)}"`;
-  const sw=f1(size*(st.font==='script'?.1:.15)), shOff=f1(size*.07);
+  const sw=f1(size*({none:0,thin:.08,normal:.15,fat:.23}[spec.strokeW]??.15)), shOff=size*.07;
   const total=lgMeasure(text,font,size,sp,wt);
-  let glyphs;  // [{ch,x,y,rot}]
-  if(st.perLetter||st.jitter||arc){
+  let glyphs;  // [{ch,x,y,rot,w}]
+  if(spec.bounce||spec.tilt||arcK){
     glyphs=[...text].map((ch,i,arr)=>{
       const x=cx-total/2+lgMeasure(arr.slice(0,i).join(''),font,size,sp,wt)+(i?sp*size:0);
       const w=lgMeasure(ch,font,size,0,wt), dx=x+w/2-cx;
-      let y=baseline+(st.perLetter?Math.sin(i*1.9+idx*1.3)*size*.05:st.jitter?lgR(r,-1,1)*size*.03:0);
-      let rot=st.tilt||st.perLetter?lgR(r,-7,7):st.jitter?lgR(r,-3,3):0;
-      if(arc){ y+=arc*dx*dx; rot+=Math.atan(2*arc*dx)*180/Math.PI; }
+      let y=baseline+(spec.bounce?Math.sin(i*1.9+idx*1.3)*size*.05:0);
+      let rot=spec.tilt?lgR(r,-7,7):0;
+      if(arcK){ y+=arcK*dx*dx; rot+=Math.atan(2*arcK*dx)*180/Math.PI; }
       return {ch,x,y,rot,w};
     });
   } else glyphs=[{ch:text,x:cx-total/2,y:baseline,rot:0}];
   const ls=sp&&glyphs.length===1?` letter-spacing="${f1(sp*size)}"`:'';
   const g=(extra,dx=0,dy=0)=>glyphs.map(q=>q.ch.trim()?
     `<text x="${f1(q.x+dx)}" y="${f1(q.y+dy)}" ${attrs}${ls}${q.rot?` transform="rotate(${f1(q.rot)} ${f1(q.x+(q.w||size*.6)/2)} ${f1(q.y-size*.35)})"`:''} ${extra}>${escHtml(q.ch)}</text>`:'').join('');
-  const wrap=s=>st.skew?`<g transform="translate(${f1(cx)} ${f1(baseline)}) skewX(${st.skew}) translate(${f1(-cx)} ${f1(-baseline)})">${s}</g>`:s;
+  const skew=spec.skew||0;
+  const wrap=s=>skew?`<g transform="translate(${f1(cx)} ${f1(baseline)}) skewX(${f1(skew)}) translate(${f1(-cx)} ${f1(-baseline)})">${s}</g>`:s;
+  const swS=Math.max(+sw,size*.08);
   let svg='';
-  if(st.echo) svg+=g(`fill="none" stroke="${pal.text2}" stroke-width="3" opacity=".35"`, -size*.08, -size*.1);
-  svg+=g(`fill="${pal.shadow}" stroke="${pal.shadow}" stroke-width="${sw}" stroke-linejoin="round"`, shOff, shOff);
-  svg+=g(`fill="${fill}" stroke="${pal.stroke}" stroke-width="${sw}" stroke-linejoin="round" paint-order="stroke"`);
+  if(spec.echo) svg+=g(`fill="none" stroke="${pal.text2}" stroke-width="3" opacity=".35"`, -size*.08, -size*.1);
+  switch(spec.textShadow){
+    case 'glow': svg+=g(`fill="${pal.accents[0]}" stroke="${pal.accents[0]}" stroke-width="${f1(size*.32)}" stroke-linejoin="round" opacity=".45"`); break;
+    case '3d': for(let k=6;k>=1;k--) svg+=g(`fill="${pal.shadow}" stroke="${pal.shadow}" stroke-width="${f1(swS)}" stroke-linejoin="round"`, k*size*.018, k*size*.018); break;
+    case 'none': break;
+    default: svg+=g(`fill="${pal.shadow}" stroke="${pal.shadow}" stroke-width="${f1(swS)}" stroke-linejoin="round"`, shOff, shOff);
+  }
+  svg+=g(`fill="${fill}"${+sw?` stroke="${pal.stroke}" stroke-width="${sw}" stroke-linejoin="round" paint-order="stroke"`:''}`);
   return {svg:wrap(svg), width:total};
 }
 // Banner ribbon behind a line of text, with notched, folded-back tails.
@@ -929,64 +1010,177 @@ function logoRibbon(cx, midY, w, h, fill, pal){
   const tail=s=>{ const x=s<0?l:l+w; return `<path d="${polyPath([[x,t+back],[x+s*tl,t+back],[x+s*tl*.62,t+back+h/2],[x+s*tl,t+back+h],[x,t+back+h]])}" fill="${pal.shadow}"/>`; };
   return tail(-1)+tail(1)+`<rect x="${f1(l)}" y="${f1(t)}" width="${f1(w)}" height="${f1(h)}" fill="${fill}" stroke="${pal.shadow}" stroke-width="4"/>`;
 }
+function logoPatternDef(kind, pid, color){
+  const P=(w,h,inner,tf='')=>`<pattern id="${pid}" width="${w}" height="${h}" patternUnits="userSpaceOnUse"${tf}>${inner}</pattern>`;
+  switch(kind){
+    case 'stripes': return P(40,40,`<rect width="40" height="14" fill="${color}"/>`);
+    case 'diagonal': return P(40,40,`<rect width="16" height="40" fill="${color}"/>`,' patternTransform="rotate(45)"');
+    case 'dots': return P(36,36,`<circle cx="9" cy="9" r="6" fill="${color}"/><circle cx="27" cy="27" r="6" fill="${color}"/>`);
+    case 'checker': return P(48,48,`<rect width="24" height="24" fill="${color}"/><rect x="24" y="24" width="24" height="24" fill="${color}"/>`);
+    case 'zigzag': return P(40,26,`<path d="M0,20 L10,7 L20,20 L30,7 L40,20" fill="none" stroke="${color}" stroke-width="5"/>`);
+    case 'grid': return P(34,34,`<path d="M34,0 H0 V34" fill="none" stroke="${color}" stroke-width="3"/>`);
+  }
+  return '';
+}
+const raysSvg=(cx,cy,n,R,color,op)=>Array.from({length:n},(_,i)=>{ const a0=i/n*Math.PI*2, a1=(i+.5)/n*Math.PI*2;
+  return `<path d="M${cx},${cy} L${f1(cx+Math.cos(a0)*R)},${f1(cy+Math.sin(a0)*R)} L${f1(cx+Math.cos(a1)*R)},${f1(cy+Math.sin(a1)*R)}Z" fill="${color}" opacity="${op}"/>`; }).join('');
 
-function generateLogoSvg({text, style, variant=0}){
-  const st=LOGO_STYLES[style]||LOGO_STYLES.retro;
-  const r=seededRng(`${style}|${variant}`);
-  const pal=lgPick(r,st.palettes), shapeKind=lgPick(r,st.shapes);
-  const cx=LOGO_W/2, cy=LOGO_H/2+6, rx=lgR(r,262,282), ry=lgR(r,172,186);
-  const id='lg'+(hashStr(style+'|'+variant)%1e7);
-  const sh=logoShape(shapeKind, r, cx, cy, rx, ry, pal, id);
-  const arcRoll=r(), ribbonRoll=r(), arcK=lgR(r,.0007,.0013)*(r()<.75?1:-1);
-  const lines=logoLines(text).map(s=>st.keepCase?s:s.toUpperCase());
-  const ribbon = lines.length>1 && st.ribbon && ribbonRoll<st.ribbon;
-  const arc = st.arc && arcRoll<st.arc ? arcK : 0;
-  // text sizing: fit each line to the backdrop's width
-  const font=LOGO_FONTS[st.font], sp=st.spacing||0, wt=st.weight||900;
+/* ----- logo specs: every component of a logo is a setting -----
+ * {v:2, text, theme, seed (shape geometry), seedT (letter wobble), seedD (decor
+ *  placement), shape, pattern, outline, shadow, rotate, bg, colors:{shape, shape2,
+ *  shadow, text, text2, stroke, a1, a2, a3, bg}, font, caseMode, textFill,
+ *  strokeW, textShadow, bounce, tilt, arc (-1 dip … 1 arch), skew, spacing,
+ *  echo, ribbon, decor:[kinds], decorCount}
+ * Randomize builds one from a theme (LOGO_STYLES) with some wild cards mixed in. */
+const hexOf=n=>Math.round(Math.max(0,Math.min(255,n))).toString(16).padStart(2,'0');
+function hsl(h,s,l){ h=((h%360)+360)%360; s/=100; l=Math.max(0,Math.min(100,l))/100;
+  const k=n=>(n+h/30)%12, a=s*Math.min(l,1-l), f=n=>l-a*Math.max(-1,Math.min(k(n)-3,Math.min(9-k(n),1)));
+  return '#'+hexOf(f(0)*255)+hexOf(f(8)*255)+hexOf(f(4)*255); }
+const palToColors=p=>({shape:p.shape, shape2:p.shape2, shadow:p.shadow,
+  text:/^#/.test(p.text)?p.text:'#ffffff', text2:p.text2, stroke:p.stroke,
+  a1:p.accents[0], a2:p.accents[1]||p.accents[0], a3:p.accents[2]||p.accents[0], bg:'#160f2e'});
+// A harmonious random scheme (complementary / triad / analogous around one hue).
+function randomColors(r){
+  const h=r()*360, sch=lgPick(r,['comp','triad','analog','split']);
+  const h2=sch==='comp'?h+180:sch==='triad'?h+120:sch==='split'?h+150:h+35, h3=sch==='triad'?h+240:sch==='split'?h+210:h+180;
+  const s=lgR(r,72,96), l=lgR(r,42,58), lightShape=l>53&&r()<.45;
+  return {shape:hsl(h,s,l), shape2:hsl(h,s,l+16), shadow:hsl(h,s*.7,11),
+    text:lightShape?hsl(h2,85,28):(r()<.55?'#ffffff':hsl(h2,95,64)), text2:hsl(h3,95,lightShape?32:62),
+    stroke:lightShape?'#ffffff':hsl(h,80,10), a1:hsl(h2,95,62), a2:hsl(h3,92,62), a3:r()<.5?'#ffffff':hsl(h+60,95,65), bg:hsl(h+180,45,10)};
+}
+const uniq=a=>[...new Set(a)];
+const LOGO_RAND={
+  shape(s,r){ const st=LOGO_STYLES[s.theme]||LOGO_STYLES.retro;
+    s.shape = r()<.72 ? lgPick(r,st.shapes) : lgPick(r,LOGO_SHAPES)[0];
+    s.seed=Math.floor(r()*1e9);
+    s.pattern = r()<.3 ? lgPick(r,LOGO_PATTERNS.slice(1))[0] : 'none';
+    s.outline = r()<.28 ? lgPick(r,LOGO_OUTLINES.slice(1))[0] : 'none';
+    s.shadow = lgPick(r,['drop','drop','drop','deep','extrude','extrude','none']);
+    s.rotate = r()<.3 ? Math.round(lgR(r,-10,10)) : 0; },
+  colors(s,r){ const st=LOGO_STYLES[s.theme]||LOGO_STYLES.retro, bg=s.colors&&s.colors.bg;
+    s.colors = r()<.68 ? palToColors(lgPick(r,st.palettes)) : randomColors(r);
+    if(bg && r()<.5) s.colors.bg=bg;
+    s.textFill = st.chrome ? (r()<.75?'chrome':'gradient') : (r()<.2?'gradient':'solid'); },
+  text(s,r){ const st=LOGO_STYLES[s.theme]||LOGO_STYLES.retro;
+    s.font = r()<.75 ? st.font : lgPick(r,Object.keys(LOGO_FONTS));
+    s.caseMode = st.keepCase&&s.font===st.font ? 'asis' : 'upper';
+    s.bounce = !!st.perLetter ? r()<.8 : r()<.15;
+    s.tilt = (st.tilt||st.jitter) ? r()<.75 : r()<.12;
+    s.arc = r()<(st.arc||.15) ? f1((r()<.75?1:-1)*lgR(r,.4,1)) : 0;
+    s.skew = st.skew ? st.skew+Math.round(lgR(r,-3,3)) : (r()<.2?-Math.round(lgR(r,6,12)):0);
+    s.spacing = st.spacing||0;
+    s.echo = st.echo ? r()<.6 : r()<.1;
+    s.ribbon = r()<(st.ribbon||.12);
+    s.textShadow = lgPick(r,['drop','drop','drop','3d','3d','glow']);
+    s.strokeW = lgPick(r,['normal','normal','normal','thin','fat']);
+    s.seedT=Math.floor(r()*1e9); },
+  extras(s,r){ const st=LOGO_STYLES[s.theme]||LOGO_STYLES.retro;
+    s.decor = uniq([...st.decor.filter(()=>r()<.8), ...(r()<.3?[lgPick(r,LOGO_DECOR)[0]]:[])]);
+    if(!s.decor.length) s.decor=[st.decor[0]];
+    s.decorCount = Math.floor(lgR(r,3,9));
+    s.seedD=Math.floor(r()*1e9);
+    if(s.bg==null) s.bg='none'; },
+};
+function newLogoSpec(theme, text, r=Math.random){
+  const keys=Object.keys(LOGO_STYLES);
+  const s={v:2, text:text||'', theme: theme==='*'||!LOGO_STYLES[theme] ? lgPick(r,keys) : theme, bg:'none'};
+  LOGO_RAND.shape(s,r); LOGO_RAND.colors(s,r); LOGO_RAND.text(s,r); LOGO_RAND.extras(s,r);
+  return s;
+}
+// Accepts a full spec, an older {text, style, variant} save, or just {text, style}.
+function toLogoSpec(x){
+  if(x && x.v===2 && x.shape) return JSON.parse(JSON.stringify(x));
+  const style=LOGO_STYLES[x&&x.style]?x.style:'retro';
+  const variant=x&&x.variant!=null?x.variant:hashStr((x&&x.text)||'')%97;
+  return newLogoSpec(style, x&&x.text, seededRng(`${style}|${variant}`));
+}
+
+function generateLogoSvg(input){
+  const s=toLogoSpec(input), c=s.colors;
+  const pal={shape:c.shape, shape2:c.shape2, shadow:c.shadow, text:c.text, text2:c.text2, stroke:c.stroke, accents:[c.a1,c.a2,c.a3]};
+  const rG=seededRng('g|'+s.seed), rT=seededRng('t|'+s.seedT), rD=seededRng('d|'+s.seedD);
+  const cx=LOGO_W/2, cy=LOGO_H/2+6, rx=lgR(rG,262,282), ry=lgR(rG,172,186);
+  const id='lg'+(hashStr(JSON.stringify(s))%1e8);
+  const sh=logoShape(s.shape, rG, cx, cy, rx, ry, pal, id);
+  // ---- background (optional; transparent suits most guides) ----
+  let bg='';
+  if(s.bg&&s.bg!=='none'){
+    bg=`<rect width="${LOGO_W}" height="${LOGO_H}" rx="28" fill="${c.bg}"/>`;
+    if(s.bg==='stars') for(let i=0;i<46;i++) bg+=`<circle cx="${f1(lgR(rD,6,LOGO_W-6))}" cy="${f1(lgR(rD,6,LOGO_H-6))}" r="${f1(lgR(rD,1,3.4))}" fill="${lgPick(rD,['#ffffff',c.a1,c.a2])}" opacity="${f1(lgR(rD,.35,.9))}"/>`;
+    if(s.bg==='rays') bg+=`<clipPath id="${id}b"><rect width="${LOGO_W}" height="${LOGO_H}" rx="28"/></clipPath><g clip-path="url(#${id}b)">${raysSvg(cx,cy,24,LOGO_W,c.a1,.16)}</g>`;
+    if(s.bg==='grid'){ let gsv=''; for(let i=0;i<=12;i++){ const x=i*LOGO_W/12; gsv+=`<line x1="${cx}" y1="${cy}" x2="${f1(x*3-LOGO_W)}" y2="${LOGO_H}" />`; }
+      for(let k=1;k<=6;k++){ const y=cy+(LOGO_H-cy)*Math.pow(k/6,1.8); gsv+=`<line x1="0" y1="${f1(y)}" x2="${LOGO_W}" y2="${f1(y)}"/>`; }
+      bg+=`<g stroke="${c.a1}" stroke-width="2" opacity=".45">${gsv}</g>`; }
+  }
+  // ---- backdrop shape ----
+  const shapeTf=sh.rot?` transform="rotate(${f1(sh.rot)} ${cx} ${cy})"`:'';
+  const bodyEl=(o,attrs)=>sh.rect
+    ? `<rect x="${f1(sh.rect[0]+o)}" y="${f1(sh.rect[1]+o)}" width="${f1(sh.rect[2])}" height="${f1(sh.rect[3])}" rx="${sh.rx}" ${attrs}${shapeTf}/>`
+    : `<path d="${sh.d}" ${attrs}${sh.evenodd?' fill-rule="evenodd"':''}${o?` transform="translate(${o} ${o})"`:''}/>`;
+  let shadow='';
+  if(s.shadow==='drop') shadow=bodyEl(14,`fill="${c.shadow}"`);
+  else if(s.shadow==='deep') shadow=bodyEl(26,`fill="${c.shadow}"`);
+  else if(s.shadow==='extrude') for(let k=20;k>=2;k-=2) shadow+=bodyEl(k,`fill="${c.shadow}"`);
+  const patColor=hexLum(c.shape)>.55?c.shadow:'#ffffff';
+  let pattern='';
+  if(s.pattern&&s.pattern!=='none'){
+    const fill = s.pattern==='rays' ? raysSvg(cx,cy,20,LOGO_W,patColor,1) : `<rect width="${LOGO_W}" height="${LOGO_H}" fill="url(#${id}p)"/>`;
+    pattern=`<clipPath id="${id}k">${bodyEl(0,'')}</clipPath><g clip-path="url(#${id}k)" opacity=".2">${fill}</g>`;
+  }
+  const stripes = sh.stripes ? `<clipPath id="${id}c"><path d="${sh.d}"/></clipPath><g clip-path="url(#${id}c)">`+
+      [0,1,2,3].map(i=>`<rect x="0" y="${f1(cy+ry*.18+i*ry*.2)}" width="${LOGO_W}" height="${f1(ry*.09+i*2)}" fill="${c.shadow}" opacity=".55"/>`).join('')+`</g>` : '';
+  const gloss = ['blob','splat','goo','softburst','planet','moon','orbit','record','globe','circlebadge','magnify','heart','circle','bubbles','pill'].includes(s.shape)
+    ? `<ellipse cx="${f1(cx-rx*.45)}" cy="${f1(cy-ry*.55)}" rx="${f1(rx*.22)}" ry="${f1(ry*.12)}" transform="rotate(-25 ${f1(cx-rx*.45)} ${f1(cy-ry*.55)})" fill="#fff" opacity=".22"/>` : '';
+  const outline = {white:bodyEl(0,`fill="none" stroke="#ffffff" stroke-width="8" stroke-linejoin="round"`),
+    dark:bodyEl(0,`fill="none" stroke="${c.shadow}" stroke-width="10" stroke-linejoin="round"`),
+    accent:bodyEl(0,`fill="none" stroke="${c.a1}" stroke-width="8" stroke-linejoin="round"`),
+    double:bodyEl(0,`fill="none" stroke="${c.shadow}" stroke-width="16" stroke-linejoin="round"`)+bodyEl(0,`fill="none" stroke="#ffffff" stroke-width="5" stroke-linejoin="round"`)}[s.outline]||'';
+  const backdrop = sh.under + shadow + bodyEl(0,`fill="url(#${id}g)"`) + sh.mid + pattern + stripes + gloss + outline + sh.over;
+  const rot = s.rotate ? `<g transform="rotate(${f1(s.rotate)} ${cx} ${cy})">${backdrop}</g>` : backdrop;
+  // ---- text ----
+  const lines=logoLines(s.text).map(t=>s.caseMode==='asis'?t:t.toUpperCase());
+  const ribbon = lines.length>1 && s.ribbon;
+  const font=LOGO_FONTS[s.font]||LOGO_FONTS.heavy, sp=s.spacing||0, wt=s.font==='script'||s.font==='marker'?700:900;
   const [tcx,tcy]=sh.tc||[cx,cy];
   const maxW=sh.tw||rx*1.62;
   const caps=lines.length>1?[128,ribbon?78:92]:[150];
   const sizes=lines.map((l,i)=>Math.max(28,Math.min(caps[i], caps[i]*maxW*(ribbon&&i?.8:1)/lgMeasure(l,font,caps[i],sp,wt))));
   const gap=lines.length>1?sizes[1]*(ribbon?.42:.18):0;
-  const blockH=sizes.reduce((a,s)=>a+s*.74,0)+gap;
+  const blockH=sizes.reduce((a,z)=>a+z*.74,0)+gap;
+  const arcK=(s.arc||0)*.0013;
+  const textFill=s.textFill==='chrome'?'url(#chrome)':s.textFill==='gradient'?`url(#${id}t)`:null;
   let y=tcy-blockH/2+sizes[0]*.74;
   const textSvg=lines.map((l,i)=>{
     if(i) y+=gap+sizes[i]*.74;
-    let fill=i===0?pal.text:pal.text2, rib='';
+    let fill=textFill||(i===0?c.text:c.text2), rib='';
     if(ribbon && i===1){
-      // ribbon colour: whichever of the shape's tones contrasts most with the
-      // text; if none is clear enough, switch the text to white or near-black
-      const opts=[pal.accents[0], pal.shadow, pal.shape2], tl=hexLum(fill);
-      const rf=opts.reduce((b,c)=>Math.abs(hexLum(c)-tl)>Math.abs(hexLum(b)-tl)?c:b);
-      if(Math.abs(hexLum(rf)-tl)<.4) fill=hexLum(rf)>.5?'#141414':'#ffffff';
-      rib=rf;
+      // ribbon colour: whichever tone contrasts most with the text; if none is
+      // clear enough, switch the text to white or near-black
+      const opts=[c.a1, c.shadow, c.shape2], tl=hexLum(c.text2);
+      rib=opts.reduce((b,o)=>Math.abs(hexLum(o)-tl)>Math.abs(hexLum(b)-tl)?o:b);
+      fill=c.text2; if(Math.abs(hexLum(rib)-tl)<.4) fill=hexLum(rib)>.5?'#141414':'#ffffff';
     }
-    const t=logoTextLine(l, tcx, y, sizes[i], st, r, fill, pal, i, i===0?arc:0);
+    const t=logoTextLine(l, tcx, y, sizes[i], s, rT, fill, pal, i, i===0?arcK:0);
     return (rib?logoRibbon(tcx, y-sizes[i]*.36, t.width+sizes[i]*1.1, sizes[i]*1.18, rib, pal):'')+t.svg;
   }).join('');
-  // decorations on a ring around the backdrop edge, kept clear of the text's middle band
+  // ---- decorations: on a ring around the backdrop, clear of the text band ----
   let decor='';
-  const n=Math.floor(lgR(r,4,8));
-  for(let i=0;i<n;i++){
-    let a=lgR(r,0,Math.PI*2); if(Math.abs(Math.sin(a))<.35) a+=Math.PI/2*.6;
-    const k=lgR(r,.96,1.14), x=cx+Math.cos(a)*rx*k, yy=cy+Math.sin(a)*ry*k;
+  const kinds=(s.decor||[]).filter(k=>LOGO_DECOR.some(d=>d[0]===k));
+  if(kinds.length) for(let i=0;i<(s.decorCount||0);i++){
+    const kind=kinds[i%kinds.length];
+    if(kind==='speed'){ decor+=logoDecor('speed',rD,cx-rx*.98-lgR(rD,0,30),cy+lgR(rD,-ry*.5,ry*.5),lgR(rD,26,40),lgPick(rD,pal.accents),pal); continue; }
+    let a=lgR(rD,0,Math.PI*2); if(Math.abs(Math.sin(a))<.35) a+=Math.PI/2*.6;
+    const k=lgR(rD,.96,1.14), x=cx+Math.cos(a)*rx*k, yy=cy+Math.sin(a)*ry*k;
     if(x<18||x>LOGO_W-18||yy<18||yy>LOGO_H-18) continue;
-    decor+=logoDecor(lgPick(r,st.decor), r, x, yy, lgR(r,14,26), lgPick(r,pal.accents), pal);
+    decor+=logoDecor(kind, rD, x, yy, lgR(rD,14,26), lgPick(rD,pal.accents), pal);
   }
-  if(shapeKind==='slash'||st.decor.includes('speed')) for(let i=0;i<3;i++) decor+=logoDecor('speed',r,cx-rx*.98-lgR(r,0,30),cy-ry*.4+i*ry*.4,lgR(r,26,40),pal.accents[i%pal.accents.length],pal);
-  const shapeTf=sh.rot?` transform="rotate(${f1(sh.rot)} ${cx} ${cy})"`:'';
-  const body=sh.rect
-    ? (o,fill)=>`<rect x="${f1(sh.rect[0]+o)}" y="${f1(sh.rect[1]+o)}" width="${f1(sh.rect[2])}" height="${f1(sh.rect[3])}" rx="${sh.rx}" fill="${fill}"${shapeTf}/>`
-    : (o,fill)=>`<path d="${sh.d}" fill="${fill}"${o?` transform="translate(${o} ${o})"`:''}/>`;
-  const stripes = sh.stripes ? `<clipPath id="${id}c"><path d="${sh.d}"/></clipPath><g clip-path="url(#${id}c)">`+
-      [0,1,2,3].map(i=>`<rect x="0" y="${f1(cy+ry*.18+i*ry*.2)}" width="${LOGO_W}" height="${f1(ry*.09+i*2)}" fill="${pal.shadow}" opacity=".55"/>`).join('')+`</g>` : '';
-  const gloss = ['blob','splat','goo','softburst','planet','moon','orbit','record','globe','circlebadge','magnify','heart'].includes(shapeKind)
-    ? `<ellipse cx="${f1(cx-rx*.45)}" cy="${f1(cy-ry*.55)}" rx="${f1(rx*.22)}" ry="${f1(ry*.12)}" transform="rotate(-25 ${f1(cx-rx*.45)} ${f1(cy-ry*.55)})" fill="#fff" opacity=".22"/>` : '';
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${LOGO_W}" height="${LOGO_H}" viewBox="0 0 ${LOGO_W} ${LOGO_H}">`+
-    `<defs><radialGradient id="${id}g" cx="40%" cy="35%" r="75%"><stop offset="0" stop-color="${pal.shape2}"/><stop offset="1" stop-color="${pal.shape}"/></radialGradient>`+
+    `<defs><radialGradient id="${id}g" cx="40%" cy="35%" r="75%"><stop offset="0" stop-color="${c.shape2}"/><stop offset="1" stop-color="${c.shape}"/></radialGradient>`+
     `<linearGradient id="chrome" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".46" stop-color="#cfe9ff"/>`+
-    `<stop offset=".5" stop-color="#5a5fb0"/><stop offset=".56" stop-color="#a9dcff"/><stop offset="1" stop-color="#ffffff"/></linearGradient>${sh.defs}</defs>`+
-    sh.under + body(14, pal.shadow) + body(0, `url(#${id}g)`) + sh.mid + stripes + gloss + sh.over + decor + textSvg + `</svg>`;
+    `<stop offset=".5" stop-color="#5a5fb0"/><stop offset=".56" stop-color="#a9dcff"/><stop offset="1" stop-color="#ffffff"/></linearGradient>`+
+    `<linearGradient id="${id}t" x1="0" y1="0" x2="0" y2="1"><stop offset=".15" stop-color="${c.text}"/><stop offset=".9" stop-color="${c.text2}"/></linearGradient>`+
+    logoPatternDef(s.pattern, id+'p', patColor) + sh.defs + `</defs>`+
+    bg + rot + decor + textSvg + `</svg>`;
 }
 async function logoPng(svg){
   const img=new Image();
@@ -998,9 +1192,10 @@ async function logoPng(svg){
 }
 // Upload a PNG to Tunarr (multipart; server.js streams it through) and make
 // it the channel's icon. Each upload gets a fresh name so guides don't show a
-// cached old logo.
+// cached old logo. The full spec is saved so the designer reopens as it was.
 async function setChannelLogo(ch, logo){
-  const blob=await logoPng(generateLogoSvg(logo));
+  const spec=toLogoSpec(logo);
+  const blob=await logoPng(generateLogoSvg(spec));
   const fd=new FormData();
   fd.append('file', blob, `studio-logo-${String(ch.id).slice(0,8)}-${Date.now().toString(36)}.png`);
   const r=await fetch(State.base.replace(/\/$/,'')+'/api/upload/image',{method:'POST',body:fd});
@@ -1010,69 +1205,151 @@ async function setChannelLogo(ch, logo){
   const full=await api('GET',`/channels/${ch.id}`);
   const icon={path:'',width:0,duration:0,position:'bottom-right',...(full.icon||{}), path:up.fileUrl};
   await api('PUT',`/channels/${ch.id}`,{...full, icon});
-  await savePrefs({logo:{text:logo.text, style:logo.style, variant:logo.variant}}, ch.id).catch(()=>{});
+  await savePrefs({logo:spec}, ch.id).catch(()=>{});
   State.channels=await api('GET','/channels');
   return up.fileUrl;
 }
-// Reusable editor: big preview + a grid of designs to click, paged with ‹ ›.
-// Style "All styles" mixes every style family into the grid.
-// Returns {get() -> {text, style, variant}, buttons (row for extra controls)}.
+
+/* ----- the logo designer -----
+ * Preview + theme + Randomize / Undo / Redo, and tabs for each component
+ * (Shape, Colors, Text, Extras), each with its own dice button. Sliders, colour
+ * pickers and the text field record one undo step per drag/edit, not per pixel.
+ * compact: the tabs start folded behind "Customize". Returns {get, buttons}. */
 function mountLogoEditor(box, init, {compact=false, textInput=null}={}){
-  const N=compact?4:8, keys=Object.keys(LOGO_STYLES);
-  const sel={style:LOGO_STYLES[init.style]?init.style:'retro',
-    variant:init.variant!=null?init.variant:hashStr(init.text||'')%N};  // unsaved: a name-picked design on page 1
-  let browse=sel.style, page=Math.floor(sel.variant/N);
-  box.innerHTML='';
-  box.classList.add('logo-ed'); box.classList.toggle('compact',compact);
-  const prev=el('div','logo-prev'), ctl=el('div','logo-ctl');
+  let spec=toLogoSpec(init);
+  const hist=[], fut=[];
+  box.innerHTML=''; box.className='logo-ed'+(compact?' compact':'');
+  const prev=el('div','logo-prev'), side=el('div','logo-side'), panel=el('div','logo-panel');
+  const lab=t=>el('label','lab2',t);
   let txt=textInput;
   if(!txt){
-    ctl.append(el('label','lab2','Logo text'));
-    txt=el('input','search-in'); txt.value=init.text||''; txt.placeholder='Channel name';
-    ctl.append(txt, el('div','hint','Use “/” to choose where it splits into two lines.'));
+    side.append(lab('Logo text'));
+    txt=el('input','search-in'); txt.value=spec.text||''; txt.placeholder='Channel name';
+    side.append(txt, el('div','hint','Use “/” to choose where it splits into two lines.'));
   }
-  ctl.append(el('label','lab2','Style'));
-  const styleSel=el('select','search-in');
-  styleSel.append(new Option('All styles — mix them up','*'));
-  keys.forEach(k=>styleSel.append(new Option(LOGO_STYLES[k].label,k)));
-  styleSel.value=browse; ctl.append(styleSel);
-  const row=el('div','logo-btns'); ctl.append(row);
-  const grid=el('div','logo-grid');
-  const nav=el('div','logo-nav');
-  const back=el('button','btn ghost sm','‹'), fwd=el('button','btn ghost sm','More designs ›'), pg=el('span','pg');
-  back.title='Previous designs';
-  nav.append(back, pg, fwd);
-  const text=()=>txt.value.trim()||init.text||'';
-  const designs=()=>Array.from({length:N},(_,i)=>{ const idx=page*N+i;
-    return browse==='*' ? {style:keys[idx%keys.length], variant:Math.floor(idx/keys.length)} : {style:browse, variant:idx}; });
-  let raf=0;
-  const draw=()=>{ cancelAnimationFrame(raf); raf=requestAnimationFrame(()=>{
-    const t=text();
-    prev.innerHTML=generateLogoSvg({...sel,text:t});
-    grid.innerHTML='';
-    designs().forEach(d=>{
-      const th=el('div','logo-thumb'+(d.style===sel.style&&d.variant===sel.variant?' on':''));
-      th.title=LOGO_STYLES[d.style].label.split(' — ')[0]+` · design ${d.variant+1}`;
-      th.innerHTML=generateLogoSvg({...d,text:t});
-      th.onclick=()=>{ sel.style=d.style; sel.variant=d.variant; draw(); };
-      grid.append(th);
-    });
-    back.disabled=page===0;
-    pg.textContent=`Designs ${page*N+1}–${page*N+N}`;
-  }); };
-  txt.addEventListener('input',draw);
-  styleSel.onchange=()=>{ browse=styleSel.value; page=0;
-    if(browse!=='*'){ sel.style=browse; sel.variant=0; } draw(); };
-  back.onclick=()=>{ if(page>0){ page--; draw(); } };
-  fwd.onclick=()=>{ page++; draw(); };
-  box.append(prev, ctl, grid, nav); draw();
-  return { get:()=>({style:sel.style, variant:sel.variant, text:text()}), buttons:row };
+  const curText=()=>txt.value.trim()||spec.text||'';
+  side.append(lab('Theme'));
+  const themeSel=el('select','search-in');
+  themeSel.append(new Option('Any theme','*'));
+  Object.entries(LOGO_STYLES).forEach(([k,st])=>themeSel.append(new Option(st.label,k)));
+  themeSel.value=LOGO_STYLES[spec.theme]?spec.theme:'*';
+  side.append(themeSel, el('div','hint','Randomize draws from the theme’s shapes, colours and type.'));
+  const acts=el('div','logo-acts');
+  const rnd=el('button','btn primary sm','🎲 Randomize'), undoB=el('button','btn ghost sm','↶ Undo'), redoB=el('button','btn ghost sm','↷ Redo');
+  acts.append(rnd, undoB, redoB);
+  side.append(acts);
+  const extra=el('div','logo-btns'); side.append(extra);
+
+  // ---- state + history ----
+  const clone=o=>JSON.parse(JSON.stringify(o));
+  const controls=[];  // {sync()}
+  let queued=false, pending=null;
+  // coalesce bursts of changes (e.g. a slider drag) into one redraw
+  const render=()=>{ if(queued) return; queued=true;
+    Promise.resolve().then(()=>{ queued=false; prev.innerHTML=generateLogoSvg({...spec,text:curText()}); }); };
+  const updBtns=()=>{ undoB.disabled=!hist.length; redoB.disabled=!fut.length; };
+  const sync=()=>{ controls.forEach(c=>c.sync()); updBtns(); };
+  const push=snap=>{ hist.push(snap); if(hist.length>80) hist.shift(); fut.length=0; updBtns(); };
+  const change=fn=>{ push(clone(spec)); fn(spec); render(); sync(); };
+  const live=fn=>{ if(!pending) pending=clone(spec); fn(spec); render(); };
+  const settle=()=>{ if(pending){ push(pending); pending=null; } sync(); };
+  undoB.onclick=()=>{ if(!hist.length) return; fut.push(clone(spec)); spec=hist.pop(); render(); sync(); };
+  redoB.onclick=()=>{ if(!fut.length) return; hist.push(clone(spec)); spec=fut.pop(); render(); sync(); };
+  const rngFresh=()=>seededRng(String(Math.random()));
+  rnd.onclick=()=>change(s=>{ const t=themeSel.value; const n=newLogoSpec(t, s.text, rngFresh());
+    Object.keys(s).forEach(k=>delete s[k]); Object.assign(s,n); });
+  themeSel.onchange=()=>change(s=>{ if(themeSel.value!=='*') s.theme=themeSel.value; });
+  txt.addEventListener('input',()=>{ if(textInput){ render(); return; } live(s=>{ s.text=txt.value; }); });
+  txt.addEventListener('change',()=>{ if(!textInput) settle(); });
+
+  // ---- control builders ----
+  const field=(label,node)=>{ const f=el('label','logo-field'); f.append(document.createTextNode(label),node); return f; };
+  const selectCtl=(label,opts,get,set)=>{ const s=el('select','search-in'); opts.forEach(([v,t])=>s.append(new Option(t,v)));
+    s.onchange=()=>change(sp=>set(sp,s.value)); controls.push({sync:()=>{ s.value=String(get(spec)); }}); return field(label,s); };
+  const sliderCtl=(label,min,max,step,get,set,fmt=v=>v)=>{ const w=el('div','slider-row'), s=el('input'), v=el('span','val');
+    s.type='range'; s.min=min; s.max=max; s.step=step; w.append(s,v);
+    s.oninput=()=>{ v.textContent=fmt(+s.value); live(sp=>set(sp,+s.value)); }; s.onchange=settle;
+    controls.push({sync:()=>{ s.value=get(spec); v.textContent=fmt(+get(spec)); }}); return field(label,w); };
+  const toggleCtl=(label,get,set)=>{ const f=el('label','logo-field logo-toggle'), c=el('input'); c.type='checkbox';
+    c.onchange=()=>change(sp=>set(sp,c.checked)); f.append(c,document.createTextNode(label));
+    controls.push({sync:()=>{ c.checked=!!get(spec); }}); return f; };
+  const colorCtl=(label,key)=>{ const c=el('input'); c.type='color';
+    c.oninput=()=>live(sp=>{ sp.colors[key]=c.value; }); c.onchange=settle;
+    controls.push({sync:()=>{ c.value=spec.colors[key]; }}); return field(label,c); };
+  const dice=(label,fn)=>{ const b=el('button','btn ghost sm',label); b.onclick=()=>change(s=>fn(s,rngFresh())); return b; };
+
+  // ---- tabs ----
+  const tabs=el('div','subtabs'), body=el('div','logo-tabbody');
+  const pages={};
+  const mk=(key,label)=>{ const t=el('div','subtab',label); t.onclick=()=>show(key); tabs.append(t);
+    const p=el('div','logo-tab'); p.style.display='none'; body.append(p); pages[key]={t,p}; return p; };
+  const show=k=>Object.entries(pages).forEach(([kk,{t,p}])=>{ t.classList.toggle('active',kk===k); p.style.display=kk===k?'':'none'; });
+  const row=(...n)=>{ const r=el('div','tab-dice'); r.append(...n); return r; };
+
+  const pShape=mk('shape','Shape');
+  pShape.append(row(dice('🎲 Random shape',(s,r)=>LOGO_RAND.shape(s,r)), dice('⟳ Reshape',(s,r)=>{ s.seed=Math.floor(r()*1e9); })),
+    selectCtl('Shape',LOGO_SHAPES,s=>s.shape,(s,v)=>{ s.shape=v; }),
+    selectCtl('Pattern',LOGO_PATTERNS,s=>s.pattern||'none',(s,v)=>{ s.pattern=v; }),
+    selectCtl('Border',LOGO_OUTLINES,s=>s.outline||'none',(s,v)=>{ s.outline=v; }),
+    selectCtl('Shadow',LOGO_SHADOWS,s=>s.shadow||'drop',(s,v)=>{ s.shadow=v; }),
+    sliderCtl('Tilt',-20,20,1,s=>s.rotate||0,(s,v)=>{ s.rotate=v; },v=>v+'°'));
+
+  const pColors=mk('colors','Colors');
+  const sw=el('div','swatches');
+  const swatchesFor=()=>{ sw.innerHTML=''; const th=LOGO_STYLES[spec.theme];
+    const pals=[...(th?th.palettes:[]), ...Object.values(LOGO_STYLES).filter(x=>x!==th).flatMap(x=>x.palettes)].slice(0,24);
+    pals.forEach(p=>{ const b=el('button','swatch'); b.title='Use this colour scheme';
+      [p.shape,/^#/.test(p.text)?p.text:'#dfe6ff',p.text2,p.accents[0]].forEach(cl=>{ const s=el('span'); s.style.background=cl; b.append(s); });
+      b.onclick=()=>change(s=>{ const bg=s.colors.bg; s.colors={...palToColors(p),bg}; }); sw.append(b); }); };
+  controls.push({sync:swatchesFor});
+  pColors.append(row(dice('🎲 Random colours',(s,r)=>{ const bg=s.colors.bg; s.colors={...randomColors(r),bg}; })), sw,
+    colorCtl('Shape','shape'), colorCtl('Highlight','shape2'), colorCtl('Shadow','shadow'),
+    colorCtl('Text','text'), colorCtl('Line 2','text2'), colorCtl('Text outline','stroke'),
+    colorCtl('Accent 1','a1'), colorCtl('Accent 2','a2'), colorCtl('Accent 3','a3'));
+
+  const pText=mk('text','Text');
+  pText.append(row(dice('🎲 Random type',(s,r)=>LOGO_RAND.text(s,r))),
+    selectCtl('Font',Object.entries(LOGO_FONT_LABELS),s=>s.font,(s,v)=>{ s.font=v; }),
+    selectCtl('Letters',[['upper','UPPERCASE'],['asis','As typed']],s=>s.caseMode||'upper',(s,v)=>{ s.caseMode=v; }),
+    selectCtl('Fill',[['solid','Solid'],['gradient','Gradient'],['chrome','Chrome']],s=>s.textFill||'solid',(s,v)=>{ s.textFill=v; }),
+    selectCtl('Outline',[['none','None'],['thin','Thin'],['normal','Normal'],['fat','Fat']],s=>s.strokeW||'normal',(s,v)=>{ s.strokeW=v; }),
+    selectCtl('Shadow',LOGO_TEXT_SHADOWS,s=>s.textShadow||'drop',(s,v)=>{ s.textShadow=v; }),
+    sliderCtl('Curve',-1,1,.1,s=>s.arc||0,(s,v)=>{ s.arc=v; },v=>v>0?'arch':v<0?'dip':'flat'),
+    sliderCtl('Slant',-20,12,1,s=>s.skew||0,(s,v)=>{ s.skew=v; },v=>v+'°'),
+    sliderCtl('Spacing',0,.14,.01,s=>s.spacing||0,(s,v)=>{ s.spacing=v; },v=>Math.round(v*100)+'%'),
+    toggleCtl('Bouncy letters',s=>s.bounce,(s,v)=>{ s.bounce=v; }),
+    toggleCtl('Wobbly letters',s=>s.tilt,(s,v)=>{ s.tilt=v; }),
+    toggleCtl('Ghost outline',s=>s.echo,(s,v)=>{ s.echo=v; }),
+    toggleCtl('Ribbon on line 2',s=>s.ribbon,(s,v)=>{ s.ribbon=v; }));
+  pText.firstChild.append(dice('⟳ Re-wobble',(s,r)=>{ s.seedT=Math.floor(r()*1e9); }));
+
+  const pExtras=mk('extras','Extras');
+  const chips=el('div','chips');
+  LOGO_DECOR.forEach(([k,label])=>{ const c=el('span','chip',label);
+    c.onclick=()=>change(s=>{ s.decor=(s.decor||[]).includes(k)?s.decor.filter(x=>x!==k):[...(s.decor||[]),k]; });
+    controls.push({sync:()=>c.classList.toggle('on',(spec.decor||[]).includes(k))}); chips.append(c); });
+  pExtras.append(row(dice('🎲 Random extras',(s,r)=>LOGO_RAND.extras(s,r)), dice('⟳ Scatter',(s,r)=>{ s.seedD=Math.floor(r()*1e9); })),
+    el('div','logo-sub','Decorations'), chips,
+    sliderCtl('Amount',0,16,1,s=>s.decorCount||0,(s,v)=>{ s.decorCount=v; }),
+    selectCtl('Background',LOGO_BGS,s=>s.bg||'none',(s,v)=>{ s.bg=v; }),
+    colorCtl('Background colour','bg'));
+
+  panel.append(tabs, body); show('shape');
+  if(compact){
+    const tog=el('button','btn ghost sm','Customize ▸');
+    panel.style.display='none';
+    tog.onclick=()=>{ const open=panel.style.display==='none'; panel.style.display=open?'':'none'; tog.textContent=open?'Customize ▾':'Customize ▸'; };
+    acts.append(tog);
+  }
+  box.append(prev, side, panel);
+  render(); sync();
+  return { get:()=>({...clone(spec), text:curText()}), buttons:extra };
 }
 
 /* ---------- channel options: rename / delete ---------- */
 async function openChannelOptions(){
   const ch = State.current; if(!ch) return;
-  $('.modal').classList.add('wide');
+  $('.modal').classList.remove('xwide'); $('.modal').classList.add('wide');
   $('#modalTitle').textContent = 'Channel options';
   $('#modalOk').style.display='none'; $('#modalCancel').textContent='Close'; $('#modalCancel').onclick=()=>closeModal();
   const icon = ch.icon && ch.icon.path;
@@ -1080,9 +1357,10 @@ async function openChannelOptions(){
     `<label class="lab2">Name</label>`+
     `<div style="display:flex;gap:8px"><input id="coName" class="search-in" style="flex:1" value="${escHtml(ch.name||'')}">`+
     `<button class="btn primary sm" id="coRename">Save name</button></div>`+
-    `<div class="co-section"><div class="co-head"><b>Logo</b>`+
-      (icon?`<span class="hint">Current: <img class="cur-logo" src="${escHtml(icon)}" alt="" onerror="this.parentNode.remove()"></span>`:'')+
-    `</div><div id="coLogo"></div></div>`+
+    `<div class="co-section co-logo"><div class="co-logo-img">`+
+      (icon?`<img src="${escHtml(icon)}" alt="" onerror="this.replaceWith(document.createTextNode('Logo not reachable'))">`:'No logo yet')+
+    `</div><div><b>Logo</b><div class="hint">Design one from shapes, colours, type and decorations, then set it as this channel's icon.</div>`+
+    `<button class="btn primary sm" id="coLogoBtn" style="margin-top:8px">${icon?'Redesign logo…':'Design a logo…'}</button></div></div>`+
     `<div class="danger-zone"><div><b>Delete channel</b><div class="hint">Removes #${ch.number} and its lineup from Tunarr. `+
     `Your media library isn't touched.</div></div><button class="btn danger sm" id="coDelete">Delete…</button></div>`;
   $('#modalBg').classList.add('show');
@@ -1091,26 +1369,32 @@ async function openChannelOptions(){
   $('#coRename').onclick=save;
   inp.onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); save(); } };
   $('#coDelete').onclick=()=>deleteChannel(ch);
-
-  // logo editor: starts from the saved logo, else the channel name + a style
-  // guessed from the genres the channel was created with
+  $('#coLogoBtn').onclick=()=>openLogoDesigner(ch);
+}
+// Full-size designer. Starts from the saved design, else a fresh one in the
+// theme matching the genres the channel was created with (or its name).
+async function openLogoDesigner(ch){
   const prefs = await loadPrefs(ch.id) || {};
-  const saved = prefs.logo || {};
-  const ed = mountLogoEditor($('#coLogo'), {
-    text: saved.text || ch.name, variant: saved.variant,
-    style: saved.style || guessLogoStyle(ch.name, prefs.genres),
-  });
-  const use = el('button','btn primary sm','Use as channel logo');
-  use.onclick = async ()=>{
-    use.disabled=true; use.textContent='Uploading…';
+  const saved = prefs.logo;
+  const init = saved && saved.v===2 ? saved
+    : saved && saved.style ? {...saved, text: saved.text||ch.name}
+    : newLogoSpec(guessLogoStyle(ch.name, prefs.genres), ch.name);
+  $('.modal').classList.add('wide','xwide');
+  $('#modalTitle').textContent = `Logo designer — ${ch.name||''}`;
+  $('#modalBody').innerHTML = '<div id="ldEditor"></div>';
+  const ed = mountLogoEditor($('#ldEditor'), init);
+  const ok=$('#modalOk'); ok.style.display=''; ok.textContent='Use as channel logo';
+  $('#modalCancel').textContent='Back'; $('#modalCancel').onclick=()=>{ ok.textContent='Confirm'; ok.style.display='none'; openChannelOptions(); };
+  ok.onclick = async ()=>{
+    ok.disabled=true; ok.textContent='Uploading…';
     try{
       await setChannelLogo(ch, ed.get());
       State.current = State.channels.find(c=>c.id===ch.id) || ch;
       closeModal(); renderChannels(); renderMain();
       toast('Logo set. Guides pick it up on their next refresh.','ok');
-    }catch(e){ toast('Logo failed: '+e.message,'err',6000); use.disabled=false; use.textContent='Use as channel logo'; }
+    }catch(e){ toast('Logo failed: '+e.message,'err',6000); ok.disabled=false; ok.textContent='Use as channel logo'; }
   };
-  ed.buttons.append(use);
+  $('#modalBg').classList.add('show');
 }
 async function renameChannel(ch, name){
   if(name===ch.name){ closeModal(); return; }
