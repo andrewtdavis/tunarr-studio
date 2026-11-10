@@ -221,6 +221,38 @@
   .theme-lists ul{list-style:none;margin:0;padding:0;font-size:12px;color:var(--ink-dim);line-height:1.55}
   .theme-lists li{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .theme-lists li.more{color:var(--ink-faint);font-style:italic}
+  /* shows/movies sub-tabs (Manage + new-channel picker) */
+  .subtabs{display:flex;gap:6px;margin:0 0 4px}
+  .subtab{padding:5px 12px;border-radius:999px;border:1px solid var(--line);background:var(--panel-2);
+    cursor:pointer;font-size:12px;font-weight:600;color:var(--ink-dim);user-select:none}
+  .subtab:hover{color:var(--ink);border-color:#3a4256}
+  .subtab.active{background:var(--accent-soft);border-color:#5a3318;color:var(--accent)}
+  .subtab .n{font-family:var(--mono);font-weight:400;font-size:11px;margin-left:3px;opacity:.85}
+  .hint-inline{font-size:11px;color:var(--ink-faint)}
+  .head-row .spacer{flex:1}
+  .head-row .chan-opts{margin-bottom:2px}
+  .danger-zone{display:flex;align-items:center;gap:12px;margin-top:18px;padding:11px 12px;
+    border:1px solid #5a2a2a;border-radius:9px;background:rgba(200,60,60,.06)}
+  .danger-zone > div{flex:1}
+  .danger-zone .hint{font-size:11px;color:var(--ink-faint);margin-top:2px}
+  .show{user-select:none}
+  .show.movie .fader{visibility:hidden}
+  .pick-list{max-height:42vh;overflow:auto;border:1px solid var(--line);border-radius:9px;background:var(--panel-2)}
+  .pick-row{display:grid;grid-template-columns:22px 1fr auto;gap:10px;align-items:center;padding:6px 10px;
+    border-bottom:1px solid var(--line);cursor:pointer;user-select:none;font-size:13px}
+  .pick-row:last-child{border-bottom:none}
+  .pick-row:hover{background:var(--panel)}
+  .pick-row .chk{width:15px;height:15px;accent-color:var(--accent);cursor:pointer}
+  .pick-row .title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pick-row .yr{font-family:var(--mono);font-size:10px;color:var(--ink-faint);margin-left:7px}
+  .pick-row .right{font-family:var(--mono);font-size:11px;color:var(--ink-faint)}
+  .pick-foot{display:flex;align-items:center;gap:10px;margin-top:12px}
+  .pick-foot .info{font-size:12px;color:var(--ink-dim)}
+  .opt.airtime .airtime-row{display:flex;align-items:center;gap:8px}
+  .opt.airtime input[type=range]{width:150px;accent-color:var(--accent)}
+  .opt.airtime .air-lab{font-family:var(--mono);font-size:11px;color:var(--ink-dim);min-width:74px}
+  #pkAir .opt{margin-top:12px}
+  #pkAir .hint{max-width:none}
   .theme-lists li .yr{font-family:var(--mono);font-size:10px;color:var(--ink-faint);margin-left:6px}
   .theme-lists li .cr{font-family:var(--mono);font-size:9px;color:var(--ink-faint);border:1px solid var(--line);
     border-radius:4px;padding:0 4px;margin-left:5px;vertical-align:1px}
@@ -287,6 +319,7 @@ const State = {
   programming: null,    // raw {lineup, programs}
   shows: [],            // grouped [{showId,title,count,ids,rating,weights...}]
   tab: 'manage',        // manage | add
+  manageKind: 'show',   // Manage tab list: show | movie
   exampleMode: 'top',   // Add-channel example lists: top | random | recent | newest
   mediaSources: [],
   libraries: [],
@@ -445,6 +478,56 @@ function renderChannels(){
   box.append(add);
 }
 
+/* ---------- channel options: rename / delete ---------- */
+function openChannelOptions(){
+  const ch = State.current; if(!ch) return;
+  $('.modal').classList.remove('wide');
+  $('#modalTitle').textContent = 'Channel options';
+  $('#modalOk').style.display='none'; $('#modalCancel').textContent='Close'; $('#modalCancel').onclick=()=>closeModal();
+  $('#modalBody').innerHTML =
+    `<label class="lab2">Name</label>`+
+    `<div style="display:flex;gap:8px"><input id="coName" class="search-in" style="flex:1" value="${escHtml(ch.name||'')}">`+
+    `<button class="btn primary sm" id="coRename">Save name</button></div>`+
+    `<div class="danger-zone"><div><b>Delete channel</b><div class="hint">Removes #${ch.number} and its lineup from Tunarr. `+
+    `Your media library isn't touched.</div></div><button class="btn danger sm" id="coDelete">Delete…</button></div>`;
+  $('#modalBg').classList.add('show');
+  const inp=$('#coName'); inp.focus(); inp.select();
+  const save=()=>{ const n=inp.value.trim(); if(!n){ toast('Enter a name','warn'); return; } renameChannel(ch, n); };
+  $('#coRename').onclick=save;
+  inp.onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); save(); } };
+  $('#coDelete').onclick=()=>deleteChannel(ch);
+}
+async function renameChannel(ch, name){
+  if(name===ch.name){ closeModal(); return; }
+  try{
+    // PUT takes the whole channel, so start from Tunarr's current copy.
+    const full = await api('GET',`/channels/${ch.id}`);
+    await api('PUT',`/channels/${ch.id}`, {...full, name});
+    State.channels = await api('GET','/channels');
+    State.current = State.channels.find(c=>c.id===ch.id) || {...ch, name};
+    savePrefs({name}, ch.id).catch(()=>{});
+    closeModal(); renderChannels(); renderMain();
+    toast(`Renamed to “${name}”.`,'ok');
+  }catch(e){ toast('Rename failed: '+e.message,'err',6000); }
+}
+async function deleteChannel(ch){
+  const ok = await confirmModal('Delete channel',
+    `Delete <b>#${ch.number} ${escHtml(ch.name||'')}</b>?<br><br>The channel and its lineup are removed from Tunarr `+
+    `and can't be restored from here. Your media library isn't touched.`);
+  if(!ok) return;
+  try{
+    await api('DELETE',`/channels/${ch.id}`);
+    // drop Studio's prefs too, so the guide feeder stops replaying its schedule
+    fetch(`/studio-api/prefs/${encodeURIComponent(ch.id)}`,{method:'DELETE'}).catch(()=>{});
+    try{ localStorage.removeItem('tunarrStudioPrefs:'+ch.id); }catch(_){}
+    State.channels = await api('GET','/channels');
+    State.current = null; State.programming = null; State.shows = [];
+    renderChannels();
+    $('#main').innerHTML = `<div class="empty"><b>Deleted “${escHtml(ch.name||'')}”</b>Pick a channel on the left.</div>`;
+    toast(`Deleted “${ch.name}”.`,'ok');
+  }catch(e){ toast('Delete failed: '+e.message,'err',6000); }
+}
+
 /* ---------- group lineup by show ---------- */
 function showInfo(prog){
   // Condensed programming map values are: {type:'content', id, duration, program}
@@ -461,8 +544,9 @@ function showInfo(prog){
 
   if(!title){
     if(ptype==='movie'){
-      title = term.title || prog.title || '(movies)';
-      showId = showId || ('movie::'+title);
+      // Each movie is its own group, keyed by program id (two films can share a title).
+      title = term.title || prog.title || '(movie)';
+      showId = showId || ('movie::'+(prog.id||term.id||term.uuid||title));
     } else {
       // genuinely no show data — leave title null so caller can resolve by id
       title = null;
@@ -479,10 +563,16 @@ async function groupShows(programming){
   for(const e of lineup){
     if(e.type!=='content') continue;
     const prog = programs[e.id]||{};
-    const {showId,title,rating} = showInfo(prog);
+    const {showId,title,rating,ptype} = showInfo(prog);
     let g = map.get(showId);
-    if(!g){ g={showId,title,rating,count:0,ids:[],weight:1}; map.set(showId,g); }
-    g.count++; g.ids.push(e.id);
+    if(!g){
+      const term = prog.program || prog;
+      g={showId,title,rating,count:0,ids:[],weight:1,dur:0,
+        kind: ptype==='movie' ? 'movie' : 'show',
+        year: ptype==='movie' ? (term.year||null) : null};
+      map.set(showId,g);
+    }
+    g.count++; g.ids.push(e.id); g.dur += e.duration||0;
     if(!g.title && title) g.title = title;
     if(!g.rating && rating) g.rating = rating;
   }
@@ -501,6 +591,77 @@ async function groupShows(programming){
   }));
   for(const g of map.values()){ if(!g.title) g.title='(unknown show)'; }
   return [...map.values()];
+}
+const showGroups  = ()=> State.shows.filter(g=>g.kind!=='movie');
+const movieGroups = ()=> State.shows.filter(g=>g.kind==='movie');
+// Movies' current share of the lineup's airtime, rounded to 5%.
+function currentMoviePct(){
+  const m=movieGroups().reduce((a,g)=>a+g.dur,0), s=showGroups().reduce((a,g)=>a+g.dur,0);
+  return m+s ? Math.round(m/(m+s)*20)*5 : 0;
+}
+
+/* ---------- shared list helpers ---------- */
+// Checkbox lists: plain click toggles one row; shift-click sets every row
+// between it and the last-clicked row to the clicked row's new state.
+// rows: [{chk, item}] in display order; selection lives on item._sel.
+function wireRangeSelect(rows, onChange){
+  let last=null;
+  rows.forEach((r,idx)=>{
+    r.chk.addEventListener('click', e=>{
+      const v=r.chk.checked;
+      if(e.shiftKey && last!=null && last!==idx){
+        const [a,b]=last<idx?[last,idx]:[idx,last];
+        for(let k=a;k<=b;k++){ rows[k].item._sel=v; rows[k].chk.checked=v; }
+      } else r.item._sel=v;
+      last=idx; onChange&&onChange();
+    });
+  });
+}
+function shuffled(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+// Interleave a show sequence and movies so movies get ~pct% of airtime.
+// The lineup is also the channel's content pool, so nothing is dropped: the
+// shorter side is repeated (up to 4 passes) to reach the target, and whatever
+// ratio that achieves is spread evenly through the lineup by time.
+// Returns {lineup, pct} where pct is the share actually achieved.
+function mixByAirtime(showSeq, movies, pct){
+  const dur=a=>a.reduce((s,e)=>s+(e.duration||0),0);
+  if(!movies.length) return {lineup:showSeq.slice(), pct:0};
+  if(!showSeq.length) return {lineup:movies.slice(), pct:100};
+  if(pct<=0) return {lineup:showSeq.slice(), pct:0};
+  if(pct>=100) return {lineup:movies.slice(), pct:100};
+  const p=pct/100;
+  let S=showSeq.slice(), M=shuffled(movies);
+  // repeat items (a fresh pass of `base` each time round) only until `need` is met
+  const grow=(arr,base,need,reshuffle)=>{
+    let t=dur(arr), pass=reshuffle?shuffled(base):base, k=0;
+    while(t<need && arr.length<base.length*4){
+      if(k>=pass.length){ pass=reshuffle?shuffled(base):base; k=0; }
+      arr.push(pass[k]); t+=pass[k++].duration||0;
+    }
+    return arr;
+  };
+  if(dur(M) < dur(S)*p/(1-p)) M=grow(M,movies,dur(S)*p/(1-p),true);
+  else S=grow(S,showSeq,dur(M)*(1-p)/p,false);
+  const Ts=dur(S), Tm=dur(M), q=Tm/(Ts+Tm);
+  const out=[]; let i=0,j=0,ms=0,ss=0;
+  while(i<S.length||j<M.length){
+    if(j<M.length && (i>=S.length || ms <= q*(ms+ss))){ ms+=M[j].duration||0; out.push(M[j++]); }
+    else { ss+=S[i].duration||0; out.push(S[i++]); }
+  }
+  return {lineup:out, pct:Math.round(q*100)};
+}
+// "Movies' share of airtime" slider block used by Manage and the create page.
+function airtimeSlider(pct, onInput){
+  const wrap=el('div','opt airtime');
+  wrap.append(el('label',null,'Airtime split'));
+  const row=el('div','airtime-row');
+  const lS=el('span','air-lab'), lM=el('span','air-lab');
+  const rng=el('input'); rng.type='range'; rng.min='0'; rng.max='100'; rng.step='5'; rng.value=pct; rng.id='moviePct';
+  const upd=()=>{ lS.textContent=`Shows ${100-rng.value}%`; lM.textContent=`Movies ${rng.value}%`; };
+  rng.oninput=()=>{ upd(); onInput&&onInput(+rng.value); };
+  upd(); row.append(lS,rng,lM); wrap.append(row);
+  wrap.append(el('div','hint','Share of airtime for movies vs. show episodes.'));
+  return wrap;
 }
 
 /* ---------- select + render a channel ---------- */
@@ -534,15 +695,19 @@ function renderMain(){
   // header
   const hr = el('div','head-row');
   const h = el('h1', null, ch.name||'(unnamed)');
-  const meta = el('div','meta', `#${ch.number} · ${content} episodes · ${State.shows.length} shows${flex?` · ${flex} flex`:''}`);
-  hr.append(h, meta); root.append(hr);
+  const nShows=showGroups().length, nMovies=movieGroups().length;
+  const meta = el('div','meta', `#${ch.number} · ${content} programs · ${nShows} shows`+
+    `${nMovies?` · ${nMovies} movies`:''}${flex?` · ${flex} flex`:''}`);
+  const optBtn = el('button','btn ghost sm chan-opts','⋯ Channel options');
+  optBtn.onclick = openChannelOptions;
+  hr.append(h, meta, el('div','spacer'), optBtn); root.append(hr);
 
   // now-playing / skip strip
   root.append(renderNowPanel());
 
   // tabs
   const tabs = el('div','tabs');
-  const tabLabels = {manage:'Manage shows', upnext:'Up Next', add:'Add from Plex'};
+  const tabLabels = {manage:'Manage', upnext:'Up Next', add:'Add from Plex'};
   ['manage','upnext','add'].forEach(t=>{
     const tab = el('div','tab'+(State.tab===t?' active':''), tabLabels[t]);
     tab.onclick=()=>{State.tab=t; renderMain(); if(t==='add') ensureAddTab();};
@@ -792,15 +957,29 @@ async function reshuffleNow(){
 /* ---------- MANAGE tab ---------- */
 function renderManage(){
   const box = el('div');
+  const nShows=showGroups().length, nMovies=movieGroups().length;
+  if(State.manageKind==='movie' && !nMovies) State.manageKind='show';
+  if(State.manageKind==='show' && !nShows && nMovies) State.manageKind='movie';
+  const kind = State.manageKind;
+
+  // Shows / Movies sub-tabs. Selection is per-list, so switching clears it.
+  const sub = el('div','subtabs');
+  [['show','Shows',nShows],['movie','Movies',nMovies]].forEach(([k,label,n])=>{
+    const t = el('div','subtab'+(kind===k?' active':''));
+    t.append(document.createTextNode(label+' '), el('span','n',String(n)));
+    t.onclick=()=>{ if(State.manageKind===k) return; State.shows.forEach(s=>s._sel=false); State.manageKind=k; renderMain(); };
+    sub.append(t);
+  });
+  box.append(sub);
 
   // toolbar: search + rating filter + bulk
-  const tb = el('div','toolbar');
-  const search = el('input','search-in'); search.placeholder='Filter shows…'; search.type='text';
+  const tb = el('div','toolbar'); tb.id='manageBar';
+  const search = el('input','search-in'); search.placeholder= kind==='movie'?'Filter movies…':'Filter shows…'; search.type='text';
   search.oninput=()=>applyManageFilter(search.value);
   tb.append(search);
 
-  // rating filter dropdown (from grouped ratings present on channel)
-  const ratings = [...new Set(State.shows.map(s=>s.rating).filter(Boolean))].sort();
+  // rating filter dropdown (from ratings present in this list)
+  const ratings = [...new Set(State.shows.filter(s=>s.kind===kind).map(s=>s.rating).filter(Boolean))].sort();
   if(ratings.length){
     const sel = el('select','search-in');
     sel.append(new Option('All ratings',''));
@@ -809,8 +988,9 @@ function renderManage(){
     tb.append(sel);
   }
   const spacer = el('div','spacer'); tb.append(spacer);
+  tb.append(el('span','hint-inline','Shift-click to select a range'));
   const selAll = el('button','btn ghost sm','Select all'); selAll.onclick=()=>toggleAll(true);
-  const selNone = el('button','btn ghost sm','Clear'); selNone.onclick=()=>toggleAll(false);
+  const selNone = el('button','btn ghost sm','Unselect all'); selNone.onclick=()=>toggleAll(false);
   tb.append(selAll, selNone);
   box.append(tb);
 
@@ -860,6 +1040,11 @@ function renderManage(){
   oNorm.append(nchk, nlab);
 
   opts.append(oMode, oOrder, oBlock, oNorm, oDays);
+  // Shows-vs-movies airtime split, only meaningful when the channel has both.
+  if(nShows && nMovies){
+    const pct = sv.moviePct!=null ? sv.moviePct : currentMoviePct();
+    opts.append(airtimeSlider(pct));
+  }
   box.append(opts);
 
   // action bar
@@ -912,80 +1097,100 @@ function syncOptState(){
   if(days) days.disabled = mode!=='random';
 }
 
+// Rows of the current Manage list (shows or movies) passing the filters.
+function visibleManageRows(filterText='', filterRating=''){
+  const ft = filterText.trim().toLowerCase();
+  return State.shows.filter(s=> s.kind===State.manageKind
+    && (!ft || s.title.toLowerCase().includes(ft))
+    && (!filterRating || s.rating===filterRating));
+}
+function manageFilterValues(){
+  return [($('#manageBar input')||{}).value||'', ($('#manageBar select')||{}).value||''];
+}
 function renderShowRows(filterText='', filterRating='', listEl=null){
   const list = listEl || $('#showList'); if(!list) return;
   list.innerHTML='';
-  const ft = filterText.trim().toLowerCase();
-  let shown=0;
-  State.shows.forEach(s=>{
-    if(ft && !s.title.toLowerCase().includes(ft)) return;
-    if(filterRating && s.rating!==filterRating) return;
-    shown++;
-    const row = el('div','show');
+  const isMovie = State.manageKind==='movie';
+  const rows=[];
+  visibleManageRows(filterText, filterRating).forEach(s=>{
+    const row = el('div','show'+(isMovie?' movie':''));
     const chk = el('input'); chk.type='checkbox'; chk.className='chk'; chk.checked=!!s._sel;
-    chk.onchange=()=>{s._sel=chk.checked; updateSelInfo();};
+    rows.push({chk, item:s});
     const titleWrap = el('div');
     const t = el('div','title'); t.textContent=s.title;
     if(s.rating){ const rt=el('span','rating-tag', s.rating); t.append(rt); }
-    const sub = el('div','sub', s.showId.startsWith('title::')||s.showId.startsWith('movie::')
-       ? 'no show-id metadata — weighting falls back to manual' : s.showId.slice(0,18)+'…');
+    const sub = el('div','sub', isMovie
+       ? [s.year, fmtDur(s.dur/Math.max(1,s.count))].filter(Boolean).join(' · ')
+       : s.showId.startsWith('title::')
+         ? 'no show-id metadata — kept in manual lineups, left out of random schedules'
+         : s.showId.slice(0,18)+'…');
     titleWrap.append(t, sub);
 
-    // fader
+    // fader (shows only: random-schedule movie picks come from one shared slot)
     const fader = el('div','fader');
-    const rng = el('input'); rng.type='range'; rng.min='0'; rng.max='10'; rng.step='1'; rng.value=s.weight;
-    const wv = el('span','wval', s.weight+'×');
-    rng.oninput=()=>{ s.weight=+rng.value; wv.textContent=s.weight+'×'; };
-    fader.append(rng, wv);
+    if(!isMovie){
+      const rng = el('input'); rng.type='range'; rng.min='0'; rng.max='10'; rng.step='1'; rng.value=s.weight;
+      const wv = el('span','wval', s.weight+'×');
+      rng.oninput=()=>{ s.weight=+rng.value; wv.textContent=s.weight+'×'; };
+      fader.append(rng, wv);
+    }
 
-    const ep = el('div','epcount', s.count+' ep');
+    const ep = el('div','epcount', isMovie ? (s.count>1?`${s.count}× in lineup`:'') : s.count+' ep');
     const rm = el('button','btn danger sm','Remove');
     rm.onclick=()=>removeShows([s]);
 
     row.append(chk, titleWrap, fader, ep, rm);
     list.append(row);
   });
-  if(!shown){
-    list.append(el('div','empty','No shows match this filter.'));
+  wireRangeSelect(rows, updateSelInfo);
+  if(!rows.length){
+    list.append(el('div','empty', isMovie?'No movies match this filter.':'No shows match this filter.'));
   }
 }
 
 function applyManageFilter(text, rating){
-  const sel = document.querySelector('#showList');
-  const ratingSel = [...document.querySelectorAll('.toolbar select')][0];
-  renderShowRows(text||'', rating!==undefined?rating:(ratingSel?ratingSel.value:''));
+  const [t,r]=manageFilterValues();
+  renderShowRows(text!==undefined?text:t, rating!==undefined?rating:r);
 }
 
-function toggleAll(v){ State.shows.forEach(s=>s._sel=v); renderShowRows(
-  ($('.toolbar input')||{}).value||'', ($('.toolbar select')||{}).value||''); updateSelInfo(); }
+// Select/unselect only what's visible in the current list (respects filters).
+function toggleAll(v){
+  const [t,r]=manageFilterValues();
+  visibleManageRows(t,r).forEach(s=>s._sel=v);
+  renderShowRows(t,r); updateSelInfo();
+}
 
 function updateSelInfo(){
-  const sel = State.shows.filter(s=>s._sel);
+  const isMovie = State.manageKind==='movie';
+  const all = State.shows.filter(s=>s.kind===State.manageKind);
+  const sel = all.filter(s=>s._sel);
   const eps = sel.reduce((a,s)=>a+s.count,0);
   const info = $('#selInfo');
   if(info) info.textContent = sel.length
-    ? `${sel.length} selected · ${eps} episodes`
-    : `${State.shows.length} shows · drag faders to set play frequency`;
+    ? (isMovie ? `${sel.length} movie${sel.length>1?'s':''} selected` : `${sel.length} selected · ${eps} episodes`)
+    : (isMovie ? `${all.length} movies` : `${all.length} shows · drag faders to set play frequency`);
 }
 
 /* ---------- remove ---------- */
 async function removeSelected(){
   const sel = State.shows.filter(s=>s._sel);
-  if(!sel.length){toast('Select shows to remove first','warn');return;}
+  if(!sel.length){toast('Select something to remove first','warn');return;}
   removeShows(sel);
 }
 
 async function removeShows(shows){
   const eps = shows.reduce((a,s)=>a+s.count,0);
-  const names = shows.map(s=>`<code class="k">${s.title}</code>`).join(' ');
-  const ok = await confirmModal('Remove shows',
-    `Remove ${shows.length} show(s) — ${eps} episodes — from <b>${State.current.name}</b>?<br><br>${names}`);
+  const nm = shows.filter(s=>s.kind==='movie').length, ns = shows.length-nm;
+  const what = [ns?`${ns} show(s) — ${shows.filter(s=>s.kind!=='movie').reduce((a,s)=>a+s.count,0)} episodes`:'', nm?`${nm} movie(s)`:''].filter(Boolean).join(' and ');
+  const names = shows.map(s=>`<code class="k">${escHtml(s.title)}</code>`).join(' ');
+  const ok = await confirmModal(nm&&!ns?'Remove movies':'Remove shows',
+    `Remove ${what} from <b>${escHtml(State.current.name)}</b>?<br><br>${names}`);
   if(!ok) return;
   try{
     toast('Saving…','ok',1200);
     await doRemoveShows(shows);
     renderMain();
-    toast(`Removed ${shows.length} show(s). Guide will refresh.`,'ok');
+    toast(`Removed ${what}. Guide will refresh.`,'ok');
   }catch(e){ toast('Remove failed: '+e.message,'err',6000); }
 }
 // Core removal (no confirm, no render) shared by Manage and the Add tab.
@@ -1025,8 +1230,13 @@ async function applyWeighting(){
   const blockSize = Math.max(1, Math.min(20, +($('#blockSize')||{}).value||1));
   const normalize = !!($('#normalize')||{}).checked;
 
-  const usable = State.shows.filter(s=>!s.showId.startsWith('title::')&&!s.showId.startsWith('movie::'));
-  const fallback = State.shows.length - usable.length;
+  // Shows without a show id can't get a random-schedule slot; manual lineups keep them.
+  const allShows = showGroups();
+  const usable = mode==='random' ? allShows.filter(s=>!s.showId.startsWith('title::')) : allShows;
+  const fallback = allShows.length - usable.length;
+  const movies = movieGroups();
+  const moviePct = movies.length && allShows.length ? Math.max(0,Math.min(100, +(($('#moviePct')||{}).value ?? currentMoviePct())))
+    : (movies.length ? 100 : 0);
   const lineupById = new Map((State.programming.lineup||[]).filter(e=>e.type==='content').map(e=>[e.id,e]));
   const programIds = [...lineupById.keys()];
 
@@ -1043,11 +1253,11 @@ async function applyWeighting(){
     return ids.slice(); // chronological / next => keep stored order
   }
 
-  let body;
+  let body, achievedPct = moviePct;
   if(mode==='random'){
     // Native Tunarr random schedule. programCount = block size; order maps
     // directly; weight balances selection. Normalize => equal weight per show.
-    const slots = usable.filter(s=>s.weight>0).map(s=>({
+    const slots = moviePct>=100 ? [] : usable.filter(s=>s.weight>0).map(s=>({
       id: uuid(),
       type:'show', showId:s.showId, seasonFilter:[], seasonExcludeFilter:[],
       order, direction:'asc',
@@ -1055,6 +1265,18 @@ async function applyWeighting(){
       cooldownMs:0,
       durationSpec:{type:'dynamic', programCount: blockSize},
     }));
+    // Movies: one Tunarr 'movie' slot drawing from every movie in the pool.
+    // Slot weights pick *slots*, not airtime, so scale by average durations:
+    // a pick of the movie slot plays one movie; a show pick plays a block.
+    if(movies.length && moviePct>0){
+      const avg = (gs)=>{ const n=gs.reduce((a,g)=>a+g.count,0); return n ? gs.reduce((a,g)=>a+g.dur,0)/n : 0; };
+      const avgMovie = avg(movies) || 1, avgBlock = (avg(usable)||avgMovie)*blockSize;
+      const showW = slots.reduce((a,s)=>a+s.weight,0);
+      const w = slots.length ? (moviePct/(100-moviePct)) * showW * avgBlock / avgMovie : 1;
+      slots.push({ id: uuid(), type:'movie', order:'shuffle', direction:'asc',
+        weight: Math.max(0.01, +w.toFixed(3)), cooldownMs:0,
+        durationSpec:{type:'dynamic', programCount:1} });
+    }
     if(!slots.length){toast('All weights are 0 — nothing to schedule','warn');return;}
     // padStyle MUST be 'slot' (not 'episode'): with 'episode' the scheduler
     // emits only ~programCount programs total and ignores maxDays, producing a
@@ -1062,7 +1284,8 @@ async function applyWeighting(){
     // (verified vs Tunarr 1.3.6: maxDays 1/2/7 -> 41/62/181 programs).
     body = {type:'random', programs:programIds, schedule:{
       type:'random', flexPreference:'distribute', maxDays:days, padMs:0, padStyle:'slot',
-      slots, randomDistribution: normalize ? 'uniform' : 'weighted', lockWeights:false,
+      // 'uniform' ignores weights, so a movie slot needs 'weighted' to get its share.
+      slots, randomDistribution: normalize && !slots.some(s=>s.type==='movie') ? 'uniform' : 'weighted', lockWeights:false,
     }};
   } else {
     // Manual lineup we assemble ourselves.
@@ -1070,16 +1293,16 @@ async function applyWeighting(){
     //    airtime is balanced regardless of library size.
     //  - blockSize: take that many consecutive episodes per visit.
     //  - weight: a show with weight w gets w times as many visits.
-    const pools = usable.filter(s=>s.weight>0).map(s=>({
+    const pools = moviePct>=100 ? [] : usable.filter(s=>s.weight>0).map(s=>({
       show:s, w:s.weight, q:orderEpisodes(s.ids), pos:0,
     }));
-    if(!pools.length){toast('All weights are 0 — nothing to schedule','warn');return;}
+    if(!pools.length && !(movies.length && moviePct>0)){toast('All weights are 0 — nothing to schedule','warn');return;}
 
     // visits per unit weight: with normalize, base it on the smallest library so
     // every show can supply that many blocks without over-looping. Without
     // normalize, let longer shows contribute more (proportional to their length).
     const blocksAvail = pools.map(p=>Math.max(1, Math.ceil(p.q.length/blockSize)));
-    const baseVisits = normalize ? Math.max(1, Math.min(...blocksAvail)) : null;
+    const baseVisits = normalize && pools.length ? Math.max(1, Math.min(...blocksAvail)) : null;
 
     // build a weighted round-robin of *visits*
     const visitQuota = pools.map((p,i)=>{
@@ -1104,8 +1327,12 @@ async function applyWeighting(){
         const e=lineupById.get(p.q[p.pos++]); if(e) out.push(e);
       }
     }
-    if(!out.length){toast('Nothing to schedule with these options','warn');return;}
-    body = {type:'manual', lineup:out, append:false};
+    // movies (each as it appears in the lineup) mixed in by airtime share
+    const movieEntries = moviePct>0 ? movies.flatMap(g=>g.ids.map(id=>lineupById.get(id)).filter(Boolean)) : [];
+    const mixed = mixByAirtime(out, movieEntries, moviePct);
+    achievedPct = mixed.pct;
+    if(!mixed.lineup.length){toast('Nothing to schedule with these options','warn');return;}
+    body = {type:'manual', lineup:mixed.lineup, append:false};
   }
 
   // confirmation summary
@@ -1114,7 +1341,16 @@ async function applyWeighting(){
   bits.push(`order: ${({chronological:'series',shuffle:'random',next:'continue next',ordered_shuffle:'shuffle seasons'})[order]||order}`);
   if(blockSize>1) bits.push(`${blockSize}-episode blocks`);
   bits.push(normalize?'equal airtime per show':'weighted by fader');
-  const note = fallback ? `<br><br><span style="color:var(--amber)">${fallback} show(s) lack show-id metadata and were ${mode==='random'?'excluded':'included via episode duplication'}.</span>`:'';
+  if(movies.length && allShows.length) bits.push(`movies ~${achievedPct}% of airtime`);
+  const notes = [];
+  if(fallback) notes.push(`${fallback} show(s) lack show-id metadata and can't get a random-schedule slot, so they'll drop out of the lineup.`);
+  if(mode==='manual' && movies.length && allShows.length && Math.abs(achievedPct-moviePct)>=5)
+    notes.push(`Asked for ${moviePct}% movies; the closest without dropping anything (repeating the shorter side up to 4×) is ${achievedPct}%.`);
+  if(movies.length && allShows.length && moviePct===0)
+    notes.push(`Movies at 0%: the channel's ${movies.length} movie(s) will drop out of the lineup (Restore previous brings them back).`);
+  if(movies.length && allShows.length && moviePct===100)
+    notes.push(`Movies at 100%: the channel's ${allShows.length} show(s) will drop out of the lineup (Restore previous brings them back).`);
+  const note = notes.map(n=>`<br><br><span style="color:var(--amber)">${n}</span>`).join('');
   const ok = await confirmModal('Rebuild programming',
     `Rebuild <b>${State.current.name}</b> as a ${bits.join(' · ')}?${note}`);
   if(!ok) return;
@@ -1128,8 +1364,8 @@ async function applyWeighting(){
     // guide on a timer and restore the fader/options on next load.
     await savePrefs({
       name: State.current.name,
-      mode, order, blockSize, normalize, days,
-      weights: Object.fromEntries(State.shows.map(s=>[s.showId, s.weight])),
+      mode, order, blockSize, normalize, days, moviePct,
+      weights: Object.fromEntries(showGroups().map(s=>[s.showId, s.weight])),
       // only random schedules can be auto-replayed to keep the guide fed
       scheduleBody: mode==='random' ? body : null,
     });
@@ -1139,8 +1375,7 @@ async function applyWeighting(){
 }
 
 /* ---- studio prefs persistence (backend JSON store; falls back to localStorage) ---- */
-async function savePrefs(patch){
-  const id = State.current.id;
+async function savePrefs(patch, id = State.current && State.current.id){
   try{
     await fetch(`/studio-api/prefs/${encodeURIComponent(id)}`, {
       method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(patch),
@@ -1372,40 +1607,124 @@ async function themeExamples(t,type,mode){
   return {items:items.sort((a,b)=>itemTitle(a).localeCompare(itemTitle(b)))};
 }
 function escHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-async function gatherContent(theme, onProg){
-  const out=[];
-  if(theme.types.includes('movie')){
-    onProg&&onProg('Collecting movies…');
-    const r=await searchGenre(theme.genres,'movie',200).catch(()=>null);
-    (r&&r.results||[]).forEach(m=>{ const id=m.uuid||m.id; if(id&&m.duration) out.push({type:'content',id,duration:m.duration}); });
+// Every title of one type in a theme, paged (Tunarr: offset = page*limit).
+async function fetchAllGenre(genres,type){
+  const out=[], L=250;
+  for(let page=0; page<40; page++){
+    const r=await searchGenre(genres,type,L,page);
+    const items=(r&&r.results)||[]; out.push(...items);
+    if(items.length<L || out.length>=((r&&r.totalHits)||0)) break;
   }
-  if(theme.types.includes('show')){
-    const r=await searchGenre(theme.genres,'show',40).catch(()=>null);
-    const shows=(r&&r.results||[]).slice(0,30);
-    for(let i=0;i<shows.length;i++){
-      onProg&&onProg(`Adding episodes… (${i+1}/${shows.length} shows)`);
-      const sid=shows[i].uuid||shows[i].id;
-      const desc=await api('GET',`/programs/${sid}/descendants`).catch(()=>null);
-      if(Array.isArray(desc)) desc.slice(0,25).forEach(d=>{ const id=d.id||d.uuid; if(id&&d.duration) out.push({type:'content',id,duration:d.duration}); });
-      if(out.length>1200) break;
-    }
-  }
-  for(let j=out.length-1;j>0;j--){const k=Math.floor(Math.random()*(j+1));[out[j],out[k]]=[out[k],out[j]];}
-  return out.slice(0,800);
+  return out.filter(it=>itemId(it));
 }
+
+/* Step 2 of adding a channel: pick exactly which shows and movies go on it.
+ * Nothing is preselected. Shift-click selects a range; Select/Unselect all act
+ * on the visible (filtered) list. */
 async function createThemedChannel(theme){
   const tmpl=State.channels[0]||{};
   if(!tmpl.transcodeConfigId){ toast('Need at least one existing channel (for a transcode config) before adding more.','err',6000); return; }
-  const name=await promptModal('Create channel','Channel name:','', theme.name);
-  if(!name) return;
+  $('.modal').classList.add('wide');
+  $('#modalTitle').textContent='New channel';
+  $('#modalOk').style.display='none';
+  $('#modalCancel').textContent='Back'; $('#modalCancel').onclick=openAddChannel;
+  $('#modalBody').innerHTML=`<div class="empty"><span class="spin"></span> Loading titles…</div>`;
+  $('#modalBg').classList.add('show');
+  const lists={show:[],movie:[]};
+  try{
+    await Promise.all(['show','movie'].filter(t=>theme.types.includes(t)).map(async t=>{ lists[t]=await fetchAllGenre(theme.genres,t); }));
+  }catch(e){ toast('Could not load titles: '+e.message,'err',6000); return openAddChannel(); }
+  lists.movie=lists.movie.filter(m=>m.duration);  // the lineup POST needs a duration
+  if(!lists.show.length && !lists.movie.length){ toast('No playable content found for this theme','warn'); return openAddChannel(); }
+  [...lists.show,...lists.movie].forEach(it=>it._sel=false);
+
+  let kind = lists.show.length ? 'show' : 'movie';
+  let pct = 30;
+  const body=$('#modalBody');
+  body.innerHTML=
+    `<label class="lab2">Channel name</label><input id="pkName" class="search-in" style="width:100%" value="${escHtml(theme.name)}">`+
+    `<div class="subtabs" id="pkTabs" style="margin-top:12px"></div>`+
+    `<div class="toolbar" style="margin:8px 0"><input id="pkFilter" class="search-in" placeholder="Filter…" style="flex:1;min-width:140px">`+
+      `<span class="hint-inline">Shift-click to select a range</span>`+
+      `<button class="btn ghost sm" id="pkAll">Select all</button><button class="btn ghost sm" id="pkNone">Unselect all</button></div>`+
+    `<div id="pkList" class="pick-list"></div>`+
+    `<div id="pkAir"></div>`+
+    `<div class="pick-foot"><span id="pkInfo" class="info"></span><span class="spacer"></span>`+
+      `<button class="btn primary" id="pkCreate">Create channel</button></div>`;
+  if(lists.show.length && lists.movie.length) $('#pkAir').append(airtimeSlider(pct, v=>{ pct=v; }));
+
+  const visible=()=>{ const f=$('#pkFilter').value.trim().toLowerCase(); return lists[kind].filter(it=>!f||itemTitle(it).toLowerCase().includes(f)); };
+  const info=()=>{
+    const s=lists.show.filter(i=>i._sel).length, m=lists.movie.filter(i=>i._sel).length;
+    const eps=lists.show.filter(i=>i._sel).reduce((a,i)=>a+(itemEpisodes(i)||0),0);
+    $('#pkInfo').textContent = s||m ? [s?`${s} show${s>1?'s':''}${eps?` (${eps} episodes)`:''}`:'', m?`${m} movie${m>1?'s':''}`:''].filter(Boolean).join(' + ')+' selected'
+      : 'Nothing selected yet';
+    $('#pkCreate').disabled = !(s||m);
+    tabs();
+  };
+  const tabs=()=>{
+    const t=$('#pkTabs'); t.innerHTML='';
+    [['show','Shows'],['movie','Movies']].forEach(([k,label])=>{
+      if(!lists[k].length) return;
+      const n=lists[k].filter(i=>i._sel).length;
+      const d=el('div','subtab'+(kind===k?' active':''));
+      d.append(document.createTextNode(label+' '), el('span','n',`${n} / ${lists[k].length}`));
+      d.onclick=()=>{ kind=k; $('#pkFilter').value=''; render(); };
+      t.append(d);
+    });
+  };
+  const render=()=>{
+    const list=$('#pkList'); list.innerHTML='';
+    const rows=[];
+    visible().forEach(it=>{
+      const r=el('label','pick-row');
+      const chk=el('input'); chk.type='checkbox'; chk.className='chk'; chk.checked=!!it._sel;
+      const t=el('div','title'); t.textContent=itemTitle(it);
+      const yr=it.year||it.originalReleaseYear; if(yr) t.append(el('span','yr',String(yr)));
+      if(itemRating(it)) t.append(el('span','rating-tag',itemRating(it)));
+      if(it.tagline||it.summary||it.plot) r.title=it.tagline||it.summary||it.plot;
+      const right=el('div','right', kind==='show' ? (itemEpisodes(it)!=null?`${itemEpisodes(it)} ep`:'') : fmtDur(it.duration));
+      r.append(chk,t,right); list.append(r); rows.push({chk,item:it});
+    });
+    if(!rows.length) list.append(el('div','empty','Nothing matches this filter.'));
+    wireRangeSelect(rows, info);
+    info();
+  };
+  const setVisible=v=>{ visible().forEach(it=>it._sel=v); render(); };
+  $('#pkFilter').oninput=render;
+  $('#pkAll').onclick=()=>setVisible(true);
+  $('#pkNone').onclick=()=>setVisible(false);
+  $('#pkCreate').onclick=()=>{
+    const name=$('#pkName').value.trim();
+    if(!name){ toast('Enter a channel name','warn'); $('#pkName').focus(); return; }
+    const shows=lists.show.filter(i=>i._sel), movies=lists.movie.filter(i=>i._sel);
+    buildNewChannel(name, shows, movies, shows.length&&movies.length ? pct : (movies.length?100:0));
+  };
+  render();
+}
+
+async function buildNewChannel(name, shows, movies, moviePct){
+  const tmpl=State.channels[0]||{};
   $('#modalTitle').textContent='Creating channel';
   $('#modalOk').style.display='none'; $('#modalCancel').textContent='Cancel'; $('#modalCancel').onclick=()=>closeModal();
-  $('#modalBody').innerHTML=`<div class="empty"><span class="spin"></span> Collecting content…</div>`;
-  $('#modalBg').classList.add('show');
+  const prog=msg=>{ const b=$('#modalBody'); if(b) b.innerHTML=`<div class="empty"><span class="spin"></span> ${msg}</div>`; };
   try{
-    const content=await gatherContent(theme, msg=>{ const b=$('#modalBody'); if(b) b.innerHTML=`<div class="empty"><span class="spin"></span> ${msg}</div>`; });
-    if(!content.length){ toast('No playable content found for this theme','warn'); closeModal(); return; }
-    $('#modalBody').innerHTML=`<div class="empty"><span class="spin"></span> Creating channel + ${content.length} programs…</div>`;
+    // every episode of each selected show, in the order Tunarr returns them
+    const epLists=new Array(shows.length); let done=0;
+    prog(`Collecting episodes… (0/${shows.length} shows)`);
+    const queue=shows.map((s,i)=>[s,i]);
+    await Promise.all(Array.from({length:Math.min(4,queue.length)}, async ()=>{
+      while(queue.length){
+        const [s,i]=queue.shift();
+        const desc=await api('GET',`/programs/${itemId(s)}/descendants`).catch(()=>null);
+        epLists[i]=(Array.isArray(desc)?desc:[]).map(d=>({type:'content',id:d.id||d.uuid,duration:d.duration})).filter(c=>c.id&&c.duration);
+        prog(`Collecting episodes… (${++done}/${shows.length} shows)`);
+      }
+    }));
+    const movieEntries=movies.map(m=>({type:'content',id:itemId(m),duration:m.duration}));
+    const {lineup:content}=mixByAirtime(roundRobin(epLists), movieEntries, moviePct);
+    if(!content.length){ toast('No playable content found in that selection','warn'); closeModal(); return; }
+    prog(`Creating channel + ${content.length} programs…`);
     const number=Math.max(0,...State.channels.map(c=>c.number||0))+1;
     const chan={ id:uuid(), name, number, duration:0, startTime:Date.now(),
       disableFillerOverlay:true, groupTitle:'tunarr', guideMinimumDuration:30000, fillerRepeatCooldown:30000,
@@ -1418,6 +1737,8 @@ async function createThemedChannel(theme){
     const nc=(created&&created.id&&State.channels.find(c=>c.id===created.id))||State.channels.find(c=>c.number===number);
     if(!nc) throw new Error('channel created but could not be located');
     await api('POST',`/channels/${nc.id}/programming`,{type:'manual',lineup:content,append:false});
+    // remember the airtime split so Manage → Apply starts from it
+    if(shows.length && movies.length) await savePrefs({name, moviePct}, nc.id).catch(()=>{});
     closeModal(); renderChannels();
     toast(`Created “${name}” (#${number}) with ${content.length} programs.`,'ok');
     selectChannel(nc);
@@ -1493,7 +1814,7 @@ function openCustomChannel(){
     `<label class="lab2" style="margin-top:8px">Genre</label><select id="ccGenre" class="search-in" style="width:100%">${genreOpts}</select>`+
     `<label class="lab2" style="margin-top:8px">Include</label><select id="ccType" class="search-in" style="width:100%">`+
       `<option value="show,movie">Shows + Movies</option><option value="show">Shows only</option><option value="movie">Movies only</option></select>`+
-    `<div style="margin-top:12px;text-align:right"><button class="btn primary" id="ccCreate">Create</button></div>`;
+    `<div style="margin-top:12px;text-align:right"><button class="btn primary" id="ccCreate">Next: pick titles</button></div>`;
   $('#ccCreate').onclick=()=>{
     const name=$('#ccName').value.trim();
     if(!name){ toast('Enter a name','warn'); return; }

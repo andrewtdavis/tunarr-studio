@@ -227,7 +227,8 @@ const server = http.createServer(async (req, res) => {
   if (p.startsWith('/api/')) {
     const body = (req.method !== 'GET' && req.method !== 'HEAD') ? await readBody(req) : undefined;
     try {
-      const result = await tunarr(req.method, p + (u.search || ''), body);
+      // An empty body (e.g. DELETE) reads as null; forward it as no body at all.
+      const result = await tunarr(req.method, p + (u.search || ''), body ?? undefined);
       return sendJSON(res, 200, result);
     } catch (e) {
       // A 401 from Tunarr means Studio's own credentials are missing or wrong.
