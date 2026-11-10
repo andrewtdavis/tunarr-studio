@@ -208,7 +208,23 @@
   .modal-bg{position:fixed;inset:0;background:#000a;display:none;align-items:center;justify-content:center;z-index:40}
   .modal-bg.show{display:flex}
   .modal{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;max-width:480px;width:90%}
+  .modal.wide{max-width:680px}
   .modal h2{margin:0 0 8px;font-size:17px}
+  .theme-card{padding:11px 13px;border:1px solid var(--line);border-radius:9px;margin-bottom:8px;background:var(--panel-2)}
+  .theme-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+  .theme-head .title{font-weight:600;font-size:14px;color:var(--ink)}
+  .theme-head .sub{font-family:var(--mono);font-size:11px;color:var(--ink-faint);margin-top:1px}
+  .theme-head .btn{flex:none}
+  .theme-lists{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:4px 16px;margin-top:8px}
+  .theme-lists h4{margin:0 0 3px;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint)}
+  .theme-lists h4 span{font-family:var(--mono);color:var(--ink-dim);margin-left:4px}
+  .theme-lists ul{list-style:none;margin:0;padding:0;font-size:12px;color:var(--ink-dim);line-height:1.55}
+  .theme-lists li{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .theme-lists li.more{color:var(--ink-faint);font-style:italic}
+  .theme-lists li .yr{font-family:var(--mono);font-size:10px;color:var(--ink-faint);margin-left:6px}
+  .theme-lists li .cr{font-family:var(--mono);font-size:9px;color:var(--ink-faint);border:1px solid var(--line);
+    border-radius:4px;padding:0 4px;margin-left:5px;vertical-align:1px}
+  .theme-lists h4 em{font-style:normal;font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-faint)}
   .modal p{color:var(--ink-dim);margin:0 0 16px}
   .modal .row{display:flex;gap:10px;justify-content:flex-end}
   code.k{font-family:var(--mono);font-size:12px;background:var(--panel-2);padding:1px 6px;border-radius:5px;color:var(--accent)}
@@ -271,6 +287,7 @@ const State = {
   programming: null,    // raw {lineup, programs}
   shows: [],            // grouped [{showId,title,count,ids,rating,weights...}]
   tab: 'manage',        // manage | add
+  exampleMode: 'top',   // Add-channel example lists: top | random | recent | newest
   mediaSources: [],
   libraries: [],
   ratingFacet: null,    // facet name that holds content ratings
@@ -380,7 +397,7 @@ function promptModal(title, label, placeholder='', initial=''){
 }
 
 function closeModal(){
-  $('#modalBg').classList.remove('show');
+  $('#modalBg').classList.remove('show'); $('.modal').classList.remove('wide');
   $('#modalOk').style.display=''; $('#modalCancel').textContent='Cancel';
   $('#modalOk').onclick=null; $('#modalCancel').onclick=null;
 }
@@ -1272,9 +1289,11 @@ function genreFilter(genres, type){
   const nodes=[v('type',type), ...genres.map(g=>v('genres.name',g))];
   return nodes.length===1 ? nodes[0] : {type:'op',op:'and',children:nodes};
 }
-function searchGenre(genres,type,limit){
-  return api('POST','/programs/search',{query:{query:null,filter:genreFilter(genres,type),
-    sort:[{field:'sortTitle',direction:'asc'}]},limit,page:0});
+// With no text query, Tunarr (1.3.6) pages as offset = page*limit (0-based).
+// Sortable fields: title, sortTitle, duration, originalReleaseDate,
+// originalReleaseYear, addedAt, index. There is no review score in Tunarr.
+function searchGenre(genres,type,limit,page=0,sort=[{field:'sortTitle',direction:'asc'}]){
+  return api('POST','/programs/search',{query:{query:null,filter:genreFilter(genres,type),sort},limit,page});
 }
 async function countTheme(t){
   let shows=0,movies=0;
@@ -1282,6 +1301,77 @@ async function countTheme(t){
   if(t.types.includes('movie')){ try{movies=(await searchGenre(t.genres,'movie',1)).totalHits||0;}catch(e){} }
   return {shows,movies,total:shows+movies};
 }
+
+/* ----- example titles for the Add-channel suggestions ----- */
+const EXAMPLE_N=5;
+const EXAMPLE_MODES=[['top','Top rated'],['random','Random'],['recent','Recently added'],['newest','Newest']];
+// Pick n distinct random positions and fetch each as a 1-item page.
+async function randomExamples(genres,type,total,n){
+  const idx=new Set(); while(idx.size<Math.min(n,total)) idx.add(Math.floor(Math.random()*total));
+  const rs=await Promise.all([...idx].map(i=>searchGenre(genres,type,1,i).catch(()=>null)));
+  return rs.flatMap(r=>(r&&r.results)||[]);
+}
+async function sortedExamples(genres,type,n,field){
+  const r=await searchGenre(genres,type,n,0,[{field,direction:'desc'}]);
+  return (r&&r.results)||[];
+}
+// "Top rated" asks Plex itself: Tunarr's GET /plex/:sourceId/search forwards
+// `searchParam` to Plex's /library/sections/:key/all, so Plex can sort by
+// audienceRating. Plex returns the order only — Tunarr drops the score.
+// Plex filters genres by tag id, looked up once per library.
+const plexGenreCache=new Map();
+function plexGenreIds(msId,libKey){
+  const k=msId+':'+libKey;
+  if(!plexGenreCache.has(k)) plexGenreCache.set(k,
+    api('GET',`/plex/${msId}/tags?libraryKey=${encodeURIComponent(libKey)}&itemKey=genre`).then(r=>{
+      const m=new Map();
+      ((r&&r.Directory)||[]).forEach(d=>{ const f=/[?&]genre=([^&]+)/.exec(d.fastKey||'');
+        m.set(String(d.title).toLowerCase(), f?decodeURIComponent(f[1]):d.key); });
+      return m;
+    }).catch(()=>{ plexGenreCache.delete(k); return null; }));
+  return plexGenreCache.get(k);
+}
+function plexLibraries(type){
+  const mt=type==='show'?'shows':'movies';
+  return State.mediaSources.filter(s=>String(s.type||'').toLowerCase()==='plex')
+    .flatMap(s=>(s.libraries||[]).filter(l=>l.mediaType===mt&&l.enabled!==false&&l.externalKey)
+      .map(l=>({msId:s.id||s.uuid,key:l.externalKey})));
+}
+// Returns null when Plex can't answer (no Plex library, or every request failed).
+async function topRatedExamples(genres,type,n){
+  const libs=plexLibraries(type); if(!libs.length) return null;
+  const want=genres.map(g=>g.toLowerCase());
+  let anyOk=false;
+  const perLib=await Promise.all(libs.map(async l=>{
+    const ids=await plexGenreIds(l.msId,l.key); if(!ids) return [];
+    const gid=ids.get(want[0]); anyOk=true; if(gid==null) return [];
+    const sp=`genre=${gid}&sort=audienceRating:desc`;
+    // Plex is filtered by the first genre; any others are AND-ed here, so over-fetch.
+    const r=await api('GET',`/plex/${l.msId}/search?key=${encodeURIComponent(l.key)}`+
+      `&searchParam=${encodeURIComponent(sp)}&offset=0&limit=${want.length>1?60:n}`).catch(()=>null);
+    if(!r){ return []; }
+    const gname=x=>String(x&&(x.name||x.tag)||x).toLowerCase();
+    return (r.result||[]).filter(it=>want.slice(1).every(g=>(it.genres||[]).some(x=>gname(x)===g)));
+  }));
+  if(!anyOk) return null;
+  const out=[];  // interleave libraries; Plex gives us rank, not a comparable score
+  for(let i=0;out.length<n&&perLib.some(a=>i<a.length);i++) perLib.forEach(a=>{ if(a[i]&&out.length<n) out.push(a[i]); });
+  return out;
+}
+// -> {items, note}; note says when we fell back from the requested mode
+async function themeExamples(t,type,mode){
+  const total=type==='show'?t.shows:t.movies; if(!total) return {items:[]};
+  if(mode==='top'){
+    const r=await topRatedExamples(t.genres,type,EXAMPLE_N).catch(()=>null);
+    if(r&&r.length) return {items:r};
+    return {items:await randomExamples(t.genres,type,total,EXAMPLE_N), note:'random'};
+  }
+  if(mode==='recent') return {items:await sortedExamples(t.genres,type,EXAMPLE_N,'addedAt')};
+  if(mode==='newest') return {items:await sortedExamples(t.genres,type,EXAMPLE_N,'originalReleaseYear')};
+  const items=await randomExamples(t.genres,type,total,EXAMPLE_N);
+  return {items:items.sort((a,b)=>itemTitle(a).localeCompare(itemTitle(b)))};
+}
+function escHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 async function gatherContent(theme, onProg){
   const out=[];
   if(theme.types.includes('movie')){
@@ -1338,21 +1428,61 @@ async function openAddChannel(){
   $('#modalOk').style.display='none'; $('#modalCancel').textContent='Close'; $('#modalCancel').onclick=()=>closeModal();
   $('#modalBody').innerHTML=`<div class="empty"><span class="spin"></span> Analyzing your library…</div>`;
   $('#modalBg').classList.add('show');
-  const themes=CHANNEL_THEMES.map(t=>({...t}));
-  await Promise.all(themes.map(async t=>{ const c=await countTheme(t); t.shows=c.shows; t.movies=c.movies; t.total=c.total; }));
+  const themes=CHANNEL_THEMES.map(t=>({...t, ex:{}}));
+  $('.modal').classList.add('wide');
+  if(!State.mediaSources.length) await loadMediaSources();
+  await Promise.all(themes.map(async t=>Object.assign(t, await countTheme(t))));
   const ok=themes.filter(t=>t.total>=15).sort((a,b)=>b.total-a.total);
-  const row=(t,i)=>{
-    const bits=[]; if(t.shows)bits.push(t.shows+' shows'); if(t.movies)bits.push(t.movies+' movies');
-    return `<div class="result"><div><div class="title">${t.name}</div>`+
-      `<div class="sub">${t.genres.join(' + ')} · ${bits.join(' + ')}</div></div>`+
-      `<button class="btn sm primary" data-create="${i}">Create</button></div>`;
-  };
+  const listBox=(t,i,type,label,count)=> count ?
+    `<div><h4>${label} <span>${count}</span><em data-note="${i}-${type}"></em></h4>`+
+    `<ul data-ex="${i}-${type}"><li class="more">Loading…</li></ul></div>` : '';
+  const row=(t,i)=>
+    `<div class="theme-card"><div class="theme-head"><div>`+
+      `<div class="title">${escHtml(t.name)}</div>`+
+      `<div class="sub">${t.genres.map(escHtml).join(' + ')}</div></div>`+
+      `<button class="btn sm primary" data-create="${i}">Create</button></div>`+
+    `<div class="theme-lists">${listBox(t,i,'show','Shows',t.shows)}${listBox(t,i,'movie','Movies',t.movies)}</div></div>`;
+  const modes=EXAMPLE_MODES.map(([k,l])=>`<span class="chip${k===State.exampleMode?' on':''}" data-mode="${k}">${l}</span>`).join('');
   $('#modalBody').innerHTML =
-    `<div style="max-height:52vh;overflow:auto">${ok.map(row).join('')||'<div class=empty>No themes have enough content.</div>'}</div>`+
+    (ok.length?`<div class="facet-chips" style="margin:0 0 10px">${modes}</div>`:'')+
+    `<div style="max-height:60vh;overflow:auto;padding-right:4px">${ok.map(row).join('')||'<div class=empty>No themes have enough content.</div>'}</div>`+
     `<div style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px">`+
     `<button class="btn ghost sm" id="customChanBtn">Custom channel…</button></div>`;
   $('#modalBody').querySelectorAll('button[data-create]').forEach(b=>{ b.onclick=()=>createThemedChannel(ok[+b.dataset.create]); });
   $('#customChanBtn').onclick=openCustomChannel;
+
+  const body=$('#modalBody');
+  const exLine=it=>{
+    const title=itemTitle(it), year=it.year||it.originalReleaseYear, rating=it.rating||it.contentRating;
+    const blurb=it.tagline||it.summary||it.plot||'';
+    const tip=[title+(year?` (${year})`:''), blurb].filter(Boolean).join('\n\n');
+    return `<li title="${escHtml(tip)}">${escHtml(title)}`+
+      (year?`<span class="yr">${year}</span>`:'')+(rating?`<span class="cr">${escHtml(rating)}</span>`:'')+`</li>`;
+  };
+  const fill=(i,type,res,count)=>{
+    const ul=body.querySelector(`[data-ex="${i}-${type}"]`), note=body.querySelector(`[data-note="${i}-${type}"]`);
+    if(!ul) return;
+    const items=res.items||[];
+    ul.innerHTML=items.map(exLine).join('')+(count>items.length?`<li class="more">+ ${count-items.length} more</li>`:'');
+    if(note) note.textContent=res.note?` · ${res.note}`:'';
+    if(note) note.title=res.note?'Plex had no ratings to rank for this; showing random picks':'';
+  };
+  let seq=0;
+  const showMode=mode=>{
+    State.exampleMode=mode; const my=++seq;
+    body.querySelectorAll('[data-mode]').forEach(c=>c.classList.toggle('on',c.dataset.mode===mode));
+    ok.forEach((t,i)=>['show','movie'].forEach(type=>{
+      const count=type==='show'?t.shows:t.movies; if(!count) return;
+      const key=mode+':'+type;
+      if(!t.ex[key]){
+        const ul=body.querySelector(`[data-ex="${i}-${type}"]`); if(ul) ul.innerHTML='<li class="more">Loading…</li>';
+        t.ex[key]=themeExamples(t,type,mode).catch(()=>({items:[]}));
+      }
+      t.ex[key].then(res=>{ if(my===seq && $('#modalBg').classList.contains('show')) fill(i,type,res,count); });
+    }));
+  };
+  body.querySelectorAll('[data-mode]').forEach(c=>{ c.onclick=()=>showMode(c.dataset.mode); });
+  if(ok.length) showMode(State.exampleMode);
 }
 function openCustomChannel(){
   $('#modalTitle').textContent='Custom channel';
