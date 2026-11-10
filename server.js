@@ -117,6 +117,37 @@ function tunarr(method, apiPath, body, { noAuth = false } = {}) {
   });
 }
 
+// Stream a raw request body (e.g. a multipart image upload) to Tunarr and
+// relay its response. Capped at 10 MB, which is plenty for a channel logo.
+const MAX_UPLOAD = 10 * 1024 * 1024;
+function proxyUpload(req, res, apiPath) {
+  const len = parseInt(req.headers['content-length'] || '0', 10);
+  if (!len || len > MAX_UPLOAD) {
+    res.writeHead(413, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ error: `Upload must be 1 byte to ${MAX_UPLOAD} bytes` }));
+  }
+  const u = new URL(TUNARR_BASE + apiPath);
+  const lib = u.protocol === 'https:' ? require('https') : http;
+  const up = lib.request(u, {
+    method: 'POST',
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': req.headers['content-type'] || 'application/octet-stream',
+      'Content-Length': len,
+      ...(UPSTREAM_AUTH ? { 'Authorization': UPSTREAM_AUTH } : {}),
+    },
+  }, upRes => {
+    const status = upRes.statusCode === 401 ? 502 : upRes.statusCode;
+    res.writeHead(status, { 'Content-Type': upRes.headers['content-type'] || 'application/json' });
+    upRes.pipe(res);
+  });
+  up.on('error', e => {
+    if (!res.headersSent) res.writeHead(502, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: e.message }));
+  });
+  req.pipe(up);
+}
+
 /* --------------------------------------------------------- guide feeder */
 // Re-applies each saved random schedule so Tunarr keeps maxDays of guide ahead.
 // SAFETY: the API is rooted at <base>/api (so the path needs the /api prefix),
@@ -219,6 +250,13 @@ const server = http.createServer(async (req, res) => {
   if (p === '/studio-api/feed' && req.method === 'POST') {
     feedGuides('manual').catch(e => console.error(e));
     return sendJSON(res, 202, { ok: true, message: 'feeding started' });
+  }
+
+  // ---- image uploads (channel logos) ----
+  // multipart/form-data isn't JSON, so stream it to Tunarr byte-for-byte
+  // instead of going through the JSON proxy below.
+  if (p === '/api/upload/image' && req.method === 'POST') {
+    return proxyUpload(req, res, p);
   }
 
   // ---- proxy /api/* to Tunarr ----
